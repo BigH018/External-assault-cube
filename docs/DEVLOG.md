@@ -4,6 +4,31 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — Phase 5: Menu shell
+
+**Built**
+- `winapi/win32.py`: `set_dpi_aware` (per-monitor v2 with fallbacks), `find_main_window(pid)`, client/window rects,
+  `force_foreground` (AttachThreadInput trick), `get_process_image_path`, `get_file_version`.
+- `settings/signals.py`: `AppSignals` hub.
+- `ui/`: dark `theme.py` (+ SVG arrow assets), `binder.py` (SettingBinder / KeybindBinder), `layout.py`, `profile_session.py`,
+  widgets (`LabelledSlider`, `ColourButton`, `KeybindButton`), 5 tabs, `menu_window.py`.
+- `app/status.py` + `app/controller.py` (Phase 5 scope): QTimer tick; keybinds with capture suspension; menu toggle, panic,
+  quit, ESP/aimbot enable toggles, set-now (logged until Phase 7), freeze toggles; throttled attach + liveness; status at 2 Hz.
+- `main.py` / `__main__.py`: `python -m actrainer`. Logs to console + `logs/actrainer.log`.
+- Tests: binder, profile session, menu window, controller (offscreen Qt, fake keys/process). **205 tests total, all passing.**
+
+**Verified**
+- Each tab rendered offscreen to PNG and reviewed. Fixed: duplicate "Save as…" on the read-only profile, mismatched value names
+  (Armor/Smg vs Armour/SMG), misaligned keybind columns, invisible spinbox arrows, disabled primary button looking enabled.
+- Real launch against the running game: profile loaded, attached in ~0.3 s, no Qt DPI warnings.
+- `ac_client.exe` has no version resource, so the status panel shows an offset check instead.
+
+**Verified in-game by the user**
+- INSERT from inside the game brings the menu to the front and it's immediately clickable (AC releases the mouse). Hiding
+  returns focus to the game. Position memory, profiles, keybinds/conflicts, Esc-to-clear, panic, status and reattach all work.
+
+---
+
 ## 2026-10-03 — Phase 4: Settings + keybinds core
 
 **Built**

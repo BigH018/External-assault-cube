@@ -16,6 +16,18 @@ PROFILE_EXTENSION = ".json"
 LAST_PROFILE_FILE = ".last_profile"   # inside PROFILES_DIR, git-ignored
 DEFAULT_PROFILE = "default"           # committed and read-only (overwrite with "Save as")
 PROFILE_NAME_MAX_LENGTH = 40
+LOGS_DIR = PROJECT_ROOT / "logs"      # git-ignored
+LOG_FILE = "actrainer.log"
+
+# --- Controller timing --------------------------------------------------------
+ATTACH_RETRY_S = 1.0         # how often to try attaching while the game isn't found
+LIVENESS_CHECK_S = 1.0       # how often to check the attached game is still alive
+STATUS_INTERVAL_S = 0.5      # how often the menu's status panel is refreshed
+TICK_RATE_SMOOTHING = 0.1    # weight of the newest sample in the measured tick rate (exponential average)
+
+# --- Menu window --------------------------------------------------------------
+MENU_SIZE = (660, 700)       # initial width, height in pixels
+MENU_TITLE = "AC Trainer"
 
 # --- Process -----------------------------------------------------------------
 
@@ -57,6 +69,12 @@ NAME_ENCODING = "latin-1"  # AC names are plain single-byte chars; latin-1 never
 # WEAPONS must match the keys of offsets.MAG_AMMO / offsets.RESERVE_AMMO (checked by a test).
 STAT_VALUES = ("health", "armor", "grenades", "akimbo")
 WEAPONS = ("pistol", "carbine", "shotgun", "smg", "sniper", "assault")
+# Display names, shared by the Player tab and the keybind action labels so they always match.
+VALUE_NAMES = {
+    "health": "Health", "armor": "Armour", "grenades": "Grenades", "akimbo": "Akimbo ammo",
+    "pistol": "Pistol", "carbine": "Carbine", "shotgun": "Shotgun", "smg": "SMG",
+    "sniper": "Sniper", "assault": "Assault rifle",
+}
 
 # --- Setting ranges (min, max) --------------------------------------------------
 # Used by settings/models.py field metadata. That makes them the single source for store clamping AND UI slider limits.

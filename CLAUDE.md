@@ -63,7 +63,7 @@ Don't add extra packages without asking the user first.
 python -m pip install -r requirements.txt
 python -m pip install -e .          # editable install so `actrainer` is importable everywhere
 
-# run the trainer (start AssaultCube first, windowed or borderless)
+# run the trainer (start AssaultCube first, windowed or borderless). Logs: console + logs\actrainer.log
 python -m actrainer
 
 # run the debug scripts (one per phase)
@@ -102,6 +102,7 @@ assault cube project/
     phase4_keybinds.py          ✅ live keybind engine with real keys (HOLD/TOGGLE/PRESS incl. mouse buttons)
     phase8_view_matrix.py       🔲 [8] prints one bot's screen coords to verify world_to_screen
   tests/
+    conftest.py                 ✅ shared fixtures: offscreen QApplication, settings, signals, tmp ProfileStore, ProfileSession
     helpers/__init__.py         ✅ makes shared helpers importable (pytest pythonpath = tests)
     helpers/gl_matrix.py        ✅ pure-Python GL matrix maths + ac_view_projection() that mimics AC's transplayer()
     helpers/fake_game.py        ✅ make_player_buffer() + FakeProcess (dict-backed memory) for game-layer tests
@@ -115,22 +116,30 @@ assault cube project/
     settings/test_store.py      ✅ round-trip, forgiving load, clamping, keybind names/modes, migration, files, startup, default.json sync
     input/test_keys.py          ✅ name round-trip, unknown/unbound, Escape + generic modifiers not bindable
     input/test_keybinds.py      ✅ hold/toggle/press, suspension, reset, conflicts, action registry
+    ui/test_binder.py           ✅ controls write settings/emit, reload after replace_with, keybind binder
+    ui/test_profile_session.py  ✅ dirty flag, save/save as/load/rename/reset on the shared Settings
+    ui/test_menu_window.py      ✅ builds 5 tabs, title marker, cross-tab bind sync, conflict banner, refresh, status pill
+    app/test_controller.py      ✅ menu/quit/panic/toggle/set hotkeys, capture suspension, attach throttling, status, tick rate
     features/test_aimbot.py     🔲 [6] target selection + priority + filters
     features/test_player_values.py 🔲 [7] set-now/freeze logic and value validation
     features/test_esp.py        🔲 [9] draw-primitive generation
   src/actrainer/
     __init__.py                 ✅ package marker, __version__
-    __main__.py                 🔲 [5] lets `python -m actrainer` call main.main()
-    main.py                     🔲 [5] entry point: DPI awareness, QApplication, load profile, wire services, start tick
-    config.py                   ✅ non-offset constants: paths, process name, sanity limits, STAT_VALUES/WEAPONS, setting ranges, value caps
+    __main__.py                 ✅ lets `python -m actrainer` call main.main()
+    main.py                     ✅ entry point: logging, DPI awareness, QApplication, load profile, wire signals/session/controller/menu, quit
+    config.py                   ✅ non-offset constants: paths, logs, controller timing, menu size, sanity limits, values/weapons + display names, ranges, caps
     offsets.py                  ✅ ALL offsets + GAME_VERSION + PLAYER_READ_SIZE: single source of truth
     app/
-      controller.py             🔲 [6] QTimer tick: keybinds -> GameState -> aimbot -> values -> ESP -> overlay
+      __init__.py               ✅ package marker
+      status.py                 ✅ ControllerStatus (pure): attached, pid, base, exe version, offsets_ok, entities, tick rate, focus
+      controller.py             ✅ [5] QTimer tick: keybinds + actions (menu/panic/quit/toggles/set/freeze), throttled attach + liveness, status;
+                                🔲 [6] GameState -> aimbot, [7] values, [9] ESP/overlay
     settings/
       __init__.py               ✅ package marker
       models.py                 ✅ Settings + sections, enums, ranged() field metadata, field_range, replace_with (pure)
       store.py                  ✅ to_dict/from_dict (forgiving, clamping, migrations) + ProfileStore (files, read-only default, last profile, startup)
-      signals.py                🔲 [5] Qt signal hub so UI changes apply live
+      signals.py                ✅ AppSignals hub: settings_changed, refresh_requested, bind_capture_changed, set_value_requested,
+                                   menu_toggle_requested, quit_requested, status_changed
     memory/
       __init__.py               ✅ package marker (only package allowed to import pymem)
       process.py                ✅ GameProcess: attach/detach/is_alive, module base, typed u32/i32/f32 read/write; AttachError/MemoryAccessError
@@ -159,24 +168,33 @@ assault cube project/
       actions.py                ✅ BindMode, Bind, ActionDef, ACTIONS registry, default_binds, set_/freeze_ action ids
       keybinds.py               ✅ KeybindEngine (HOLD/TOGGLE/PRESS, suspended, reset_toggles), ActionStates, find_conflicts
     ui/
-      theme.py                  🔲 [5] dark stylesheet, colours, fonts
-      menu_window.py            🔲 [5] main window with tabs and status bar
+      __init__.py               ✅ package marker
+      theme.py                  ✅ palette constants, stylesheet (object names / dynamic properties), apply_theme, restyle
+      assets/arrow_up.svg       ✅ spinbox arrow (stylesheet image)
+      assets/arrow_down.svg     ✅ spinbox/combo arrow (stylesheet image)
+      binder.py                 ✅ SettingBinder (checkbox/slider/combo/colour <-> settings field), KeybindBinder (key button + mode combo), helpers
+      layout.py                 ✅ group(), row(), labelled(), hint(), scrollable()
+      profile_session.py        ✅ ProfileSession: current profile, dirty flag, load/save/save as/rename/delete/reset
+      menu_window.py            ✅ header (title, status pill, Quit) + 5 tabs; show/hide/foreground/placement; close -> quit/hide prompt
       tabs/
-        aimbot_tab.py           🔲 [5]
-        esp_tab.py              🔲 [5]
-        player_tab.py           🔲 [5]
-        keybinds_tab.py         🔲 [5]
-        settings_tab.py         🔲 [5]
+        __init__.py             ✅ package marker
+        aimbot_tab.py           ✅ enable + key/mode, target, priority, max distance, team check, FOV + circle, smoothing
+        esp_tab.py              ✅ enable + toggle key, enemies only, styles, thickness, colours, extras, snapline origin
+        player_tab.py           ✅ stats + per-weapon mag/reserve: target, Set now, key, Freeze
+        keybinds_tab.py         ✅ every action by category (from registry), mode, conflict highlight + banner
+        settings_tab.py         ✅ profiles, tick rate/overlay FPS, menu hotkey, reset, status panel
       widgets/
-        keybind_button.py       🔲 [5] "press a key to bind" button (polls key states)
-        colour_button.py        🔲 [5] colour picker button
-        labelled_slider.py      🔲 [5] slider with label and live value
+        __init__.py             ✅ package marker
+        keybind_button.py       ✅ "press a key to bind" button (polls key states, waits for release, Esc clears, 6 s timeout)
+        colour_button.py        ✅ swatch button + QColorDialog with alpha; #RRGGBBAA <-> QColor
+        labelled_slider.py      ✅ slider with label and live value (float via decimal scaling)
     overlay/
       window.py                 🔲 [9] transparent click-through window that tracks the game client rect
       painter.py                🔲 [9] draws a list of primitives with QPainter
     winapi/
       __init__.py               ✅ package marker (only package allowed to make ctypes Win32 calls)
-      win32.py                  ✅ is_key_down, get_pressed_keys (GetAsyncKeyState); 🔲 [5+] ctypes: find window, client rect, foreground, DPI, key states, ex-styles, file version
+      win32.py                  ✅ key state, set_dpi_aware, find_main_window, client/window rects, force_foreground,
+                                   process image path, file version; 🔲 [9] overlay ex-styles: find window, client rect, foreground, DPI, key states, ex-styles, file version
 ```
 
 ---
@@ -347,22 +365,35 @@ entities and invalid data without crashing.
 
 ## 9. Adding a menu tab or widget
 
-- **Tab:** create `ui/tabs/<name>_tab.py` with a `QWidget` subclass that takes `(settings, signals)`,
-  builds its controls, and implements `load_from_settings()`. Register it in `ui/menu_window.py`'s tab list.
+- **Controls bound to settings:** use `ui/binder.py`. In a tab: `b = SettingBinder(settings, signals, "esp")`, then
+  `b.checkbox(field, text)`, `b.slider(field, text, decimals, suffix)` (range from field metadata), `b.combo(field, {Enum: label})`,
+  `b.colour(field)`. Each control initialises from settings, writes back + emits `settings_changed(section)` on change, and
+  registers a loader. `b.load()` refreshes them all quietly. For a bind: `k = KeybindBinder(settings, signals)`, then
+  `k.button(action_id)` / `k.mode_combo(action_id)`. Custom controls: write back + emit yourself, and add a loader that uses `set_quietly`.
+- **Tab:** create `ui/tabs/<name>_tab.py` with a `QWidget` subclass taking `(settings, signals[, ...])`, building its controls
+  with the binders and `ui/layout.py` helpers, and implementing `load_from_settings()` (call every binder's `load()`).
+  Register it in `MenuWindow.__init__` and `MenuWindow.all_tabs()`.
 - **Widget:** if a control is used in more than one tab (or is non-trivial), put it in `ui/widgets/`.
   Widgets expose a Qt signal like `valueChanged`. They never know about `Settings`.
-- All styling goes through `ui/theme.py`. No inline colours in tabs.
+- **Sync rules:** any keybind edit emits `settings_changed("keybinds")`, and the menu reloads all tabs (a bind can appear on
+  several tabs). Changes from outside the widgets (profile load, reset, panic, hotkeys) emit `refresh_requested`, which reloads all tabs.
+- **Styling:** all colours live in `ui/theme.py`. Tabs use object names (`primary`, `danger`, `dim`, `warning`, `status`...)
+  and dynamic properties (`capturing`, `conflict`, `state`) plus `restyle(widget)`. No inline colours in tabs.
+- **Checking the look without opening windows:** render offscreen with `QT_QPA_PLATFORM=offscreen` and
+  `QT_QPA_FONTDIR=C:/Windows/Fonts` (no text without it), then `widget.grab().save("x.png")`.
 
 ### Menu window behaviour
 - **Menu toggle** (default `INSERT`, PRESS, rebindable) shows/hides the menu. It's polled in the tick, so it works while the game is focused.
 - **Shown:** always-on-top, raised and activated. Centred over the game window the **first** time.
   After that it remembers its position (stored in `GeneralSettings.menu_pos`).
 - **Hidden:** fully hidden (not minimised). Focus goes back to the game window.
-- **Mouse capture plan (to be verified in Phase 5):** AssaultCube grabs the mouse while playing. On show we
+- **Mouse capture (verified in-game 2026-10-03):** AssaultCube grabs the mouse while playing. On show we
   bring the menu to the foreground. Windows' foreground lock normally blocks this for a background process, so
   `winapi` uses `AttachThreadInput` to the current foreground thread + `SetForegroundWindow` + `BringWindowToTop`.
-  When the game loses focus it should release the cursor. If that turns out to be unreliable, the
-  fallback is documented: press `Esc` in-game first to free the cursor. The findings go in §10.
+  Verified: pressing INSERT in-game brings the menu to the front, AssaultCube releases the cursor and the menu is
+  immediately clickable. Hiding gives focus (and the mouse grab) back to the game. Fallback if it ever fails: press `Esc` in-game.
+- **Menu position** is stored in `general.menu_pos` on hide. It doesn't mark the profile dirty, is saved with the next Save,
+  and is kept (not overwritten) when another profile is loaded. Off-screen positions fall back to centring.
 - **Close (X) button:** asks "Quit trainer / Hide menu / Cancel". A **Quit** button in the menu exits cleanly
   (unfreezes values, closes overlay). There's no default quit key.
 - **Overlay stays visible** while the game **or** the menu has focus. It's hidden when anything else is foreground or the game isn't running.
@@ -406,6 +437,15 @@ entities and invalid data without crashing.
 - **Finding static pointers:** to check which static slots hold an address, scan the module image
   (base + 0x100000..0x1A0000) for the 4-byte little-endian value. Neighbouring values (capacity/count) often reveal
   the source-level layout.
+- **Menu focus over the game works** with `win32.force_foreground` (AttachThreadInput + SetForegroundWindow): AC releases
+  the mouse when it loses focus. Qt's `activateWindow()` alone is not enough while the game is focused.
+- **AC 1.3.0.2's exe has no version resource:** `get_file_version` returns None. The status panel instead checks the offsets
+  (local player pointer resolves to a sane player).
+- **Qt offscreen rendering has no fonts** unless `QT_QPA_FONTDIR=C:/Windows/Fonts` is set (text is simply missing).
+- **Qt stylesheets don't draw CSS border-triangles** for spinbox/combo arrows (you get bars). Use the SVGs in `ui/assets/`;
+  `url()` paths need forward slashes (`Path.as_posix()`).
+- **`QPushButton#primary` overrides the disabled look**, so it needs its own `:disabled` rule.
+- **`app.setQuitOnLastWindowClosed(False)`** is required, or hiding the menu would quit the app.
 - **pymem log noise:** pymem installs its own DEBUG handler on import. `memory/process.py` sets the `pymem` logger to WARNING.
 - **Default player name** in AC is `unarmed`. Seeing that name means the read works.
 - **Team check in free-for-all modes (confirmed Phase 2):** in FFA deathmatch, bots still have team 0/1 and some share
@@ -456,14 +496,14 @@ entities and invalid data without crashing.
 - [x] Phase 2: Entities: print every bot *(built + verified against running game: 7 bots read; awaiting user test)*
 - [x] Phase 3: Maths: angles, projection, skeleton + tests *(107 tests passing; awaiting in-game angle check)*
 - [x] Phase 4: Settings + keybinds core + tests *(176 tests passing; awaiting user check of phase4_keybinds)*
-- [ ] Phase 5: Menu shell (all tabs wired to settings, profiles, menu hotkey)
+- [x] Phase 5: Menu shell (all tabs wired to settings, profiles, menu hotkey) *(done 2026-10-03; 205 tests; menu focus/mouse release verified in-game)*
 - [ ] Phase 6: Controller + aimbot
 - [ ] Phase 7: Player values (set-now, freeze, keybinds)
 - [ ] Phase 8: View matrix debug script
 - [ ] Phase 9: Overlay + ESP + FOV circle
 - [ ] Phase 10: Polish (panic, reattach, status, conflicts, error handling, docs)
 
-**Next:** user checks Phase 4 → commit → Phase 5 (menu shell).
+**Next:** Phase 6 (controller + aimbot).
 
 ---
 
@@ -518,6 +558,14 @@ entities and invalid data without crashing.
 - **2026-10-03:** `default` profile is read-only and must equal code defaults (test). Reset uses code defaults.
   Aimbot team check defaults OFF (FFA finding from Phase 2).
 - **2026-10-03:** Only `aimbot` allows HOLD/TOGGLE. All other actions are PRESS (set-now fires, toggles flip a setting).
+- **2026-10-03:** `app/controller.py` started in Phase 5 (not 6). The menu hotkey must be polled every tick, so a minimal
+  controller (keybinds, actions, attach/liveness, status) was needed. Phase 6 adds GameState + aimbot to the same tick.
+- **2026-10-03:** Added `ui/binder.py`, `ui/layout.py`, `ui/profile_session.py`, `app/status.py` (not in the original layout).
+  The binder removes per-control boilerplate (init/write-back/emit/reload). The session keeps the explicit-save workflow out
+  of the widgets. Status is pure data shared by controller and UI.
+- **2026-10-03:** `AppSignals` lives in `settings/signals.py` as the single hub for UI <-> controller signals (not just settings).
+- **2026-10-03:** Read-only `default`: the Save button is disabled with a tooltip. Use Save as.
+- **2026-10-03:** Shared display names (`config.VALUE_NAMES`) so the Player tab and keybind labels match (Armour, SMG...).
 - **2026-10-03:** Shared test fakes live in `tests/helpers/` (pytest `pythonpath = ["tests"]`). `FakeProcess` is
   duck-typed (read_bytes / read_u32 / read_i32 / module_base), so game-layer code is tested without the game.
 - **2026-10-03:** src layout (`src/actrainer`) + `pyproject.toml` editable install, so tools, tests and

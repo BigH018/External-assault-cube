@@ -18,6 +18,9 @@ dev = ["pytest>=8.0"]
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+actrainer = ["ui/assets/*.svg"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # importlib mode lets test files share a basename in different folders without __init__.py files

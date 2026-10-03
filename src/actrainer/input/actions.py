@@ -72,7 +72,8 @@ def freeze_action_id(value_id: str) -> str:
 
 
 def _value_label(value_id: str) -> str:
-    return f"{value_id.capitalize()} ammo" if value_id in config.WEAPONS else value_id.capitalize()
+    name = config.VALUE_NAMES[value_id]
+    return f"{name} ammo" if value_id in config.WEAPONS else name
 
 
 def _build_actions() -> tuple[ActionDef, ...]:
