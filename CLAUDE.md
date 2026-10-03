@@ -89,16 +89,18 @@ assault cube project/
   README.md                     ✅ short overview, install/run, limits
   requirements.txt              ✅ pinned-minimum dependencies
   .gitignore                    ✅ Python + local profiles/logs
-  pyproject.toml                🔲 [1] package metadata (src layout) + pytest config
+  pyproject.toml                ✅ package metadata (src layout, editable install) + pytest config (importlib mode)
   docs/
-    DEVLOG.md                   🔲 [1] dated log of what was built, decisions and bugs fixed
+    DEVLOG.md                   ✅ dated log of what was built, decisions and bugs fixed
   profiles/
     default.json                🔲 [4] committed default profile (all other profiles are git-ignored)
   tools/
-    phase1_local_player.py      🔲 [1] live print of local player position/angles/health/team
+    phase1_local_player.py      ✅ live print of local player position/angles/health/team (auto-reattach)
+    phase1_dead_diag.py         ✅ F9 snapshots (alive/dead/alive) of the player struct; prints changed offsets + camera vs player ptr
     phase2_entities.py          🔲 [2] live print of every bot's name/health/team/head pos
     phase8_view_matrix.py       🔲 [8] prints one bot's screen coords to verify world_to_screen
   tests/
+    game/test_player.py         ✅ player struct parsing + local/bot validity checks
     maths/test_vectors.py       🔲 [3] vector helper tests
     maths/test_angles.py        🔲 [3] aim angles, normalisation, shortest-path smoothing, FOV
     maths/test_projection.py    🔲 [3] world_to_screen with hand-built matrices
@@ -109,11 +111,11 @@ assault cube project/
     features/test_player_values.py 🔲 [7] set-now/freeze logic and value validation
     features/test_esp.py        🔲 [9] draw-primitive generation
   src/actrainer/
-    __init__.py                 🔲 [1] package marker, __version__
+    __init__.py                 ✅ package marker, __version__
     __main__.py                 🔲 [5] lets `python -m actrainer` call main.main()
     main.py                     🔲 [5] entry point: DPI awareness, QApplication, load profile, wire services, start tick
-    config.py                   🔲 [1] non-offset constants: process name, value caps, default rates, paths
-    offsets.py                  🔲 [1] ALL offsets + GAME_VERSION: single source of truth
+    config.py                   ✅ non-offset constants: process name, pointer/world/health sanity limits (caps, rates, paths added later)
+    offsets.py                  ✅ ALL offsets + GAME_VERSION + PLAYER_READ_SIZE: single source of truth
     app/
       controller.py             🔲 [6] QTimer tick: keybinds -> GameState -> aimbot -> values -> ESP -> overlay
     settings/
@@ -121,10 +123,13 @@ assault cube project/
       store.py                  🔲 [4] load/save/list/rename/delete profiles, defaults, schema migration
       signals.py                🔲 [5] Qt signal hub so UI changes apply live
     memory/
-      process.py                🔲 [1] attach/detach ac_client.exe, module base, typed read/write helpers
+      __init__.py               ✅ package marker (only package allowed to import pymem)
+      process.py                ✅ GameProcess: attach/detach/is_alive, module base, typed u32/i32/f32 read/write; AttachError/MemoryAccessError
     game/
-      structs.py                🔲 [1] Vec3, PlayerSnapshot, GameState (pure data)
-      local_player.py           🔲 [1] read local player, write view angles, write player values
+      __init__.py               ✅ package marker
+      structs.py                ✅ Vec3, PlayerSnapshot, GameState (frozen, pure data)
+      player.py                 ✅ one-read player struct parsing (parse_player is pure) + local/bot validity checks
+      local_player.py           ✅ [1] read local player; 🔲 [6] write view angles; 🔲 [7] write player values
       entities.py               🔲 [2] iterate entity list -> list[PlayerSnapshot]
       view.py                   🔲 [8] read view matrix + game FOV
       state.py                  🔲 [6] read_game_state(): one call that builds a full GameState per tick
@@ -158,7 +163,8 @@ assault cube project/
       window.py                 🔲 [9] transparent click-through window that tracks the game client rect
       painter.py                🔲 [9] draws a list of primitives with QPainter
     winapi/
-      win32.py                  🔲 [1] ctypes: find window, client rect, foreground, DPI, key states, ex-styles, file version
+      __init__.py               ✅ package marker (only package allowed to make ctypes Win32 calls)
+      win32.py                  ✅ [1] is_key_down (GetAsyncKeyState); 🔲 [4+] ctypes: find window, client rect, foreground, DPI, key states, ex-styles, file version
 ```
 
 ---
@@ -210,7 +216,8 @@ telling the user why.** Module: `ac_client.exe` (32-bit).
 
 | Static (module base +) | Offset | Kind |
 |---|---|---|
-| Local player | `0x17E0A8` | **pointer** → player address |
+| Local player (`player1`) | `0x18AC00` | **pointer** → player address (stays valid while dead) |
+| Camera (`camera1`) | `0x17E0A8` | **pointer**: equals player1 while alive, death-cam object while dead. **Not** for player reads |
 | Entity list | `0x18AC04` | **pointer** → array of 4-byte entity pointers |
 | Player count | `0x18AC0C` | int (includes local player) |
 | View FOV | `0x18A7CC` | float |
@@ -339,6 +346,17 @@ entities and invalid data without crashing.
 - **The game must run windowed or borderless** for the overlay to sit on top.
 - **Lifecycle:** the game may be missing, close mid-session, or be between matches. Show status, keep the menu usable,
   auto-reattach.
+- **Camera pointer ≠ local player:** `0x17E0A8` (camera1) points at the player only while alive. On death it
+  switches to a static death-cam object (e.g. `0x00595410`, a different class). Reading player fields through it
+  gives an empty name, `dead = 0` and ASCII file paths where ammo should be. Always use `LOCAL_PLAYER_PTR` (`0x18AC00`).
+- **Health goes negative on death** (e.g. -54). Use `dead` (`0x318`) for alive/dead, never `health > 0`.
+- **Finding offsets by diffing:** take struct snapshots in state A / B / A again (`tools/phase1_dead_diag.py`).
+  Values equal in both A snapshots but different in B are "STRONG" candidates. This filters out timers and movement noise.
+- **Finding static pointers:** to check which static slots hold an address, scan the module image
+  (base + 0x100000..0x1A0000) for the 4-byte little-endian value. Neighbouring values (capacity/count) often reveal
+  the source-level layout.
+- **pymem log noise:** pymem installs its own DEBUG handler on import. `memory/process.py` sets the `pymem` logger to WARNING.
+- **Default player name** in AC is `unarmed`. Seeing that name means the read works.
 - **Team check in free-for-all modes:** team values may still match, so teammates would be skipped. Team check is
   a user toggle. There's no game-mode offset yet.
 
@@ -380,7 +398,7 @@ entities and invalid data without crashing.
 ## 13. Current Status
 
 - [x] **Step 0:** CLAUDE.md, README, requirements, .gitignore, plan. *(approved 2026-10-03)*
-- [ ] Phase 1: Memory: attach, read local player, live debug print
+- [x] Phase 1: Memory: attach, read local player, live debug print *(done 2026-10-03: local player pointer corrected to 0x18AC00; dead flag 0x318 verified)*
 - [ ] Phase 2: Entities: print every bot
 - [ ] Phase 3: Maths: angles, projection, skeleton + tests
 - [ ] Phase 4: Settings + keybinds core + tests
@@ -391,7 +409,7 @@ entities and invalid data without crashing.
 - [ ] Phase 9: Overlay + ESP + FOV circle
 - [ ] Phase 10: Polish (panic, reattach, status, conflicts, error handling, docs)
 
-**Next:** Phase 1.
+**Next:** Phase 2 (entities).
 
 ---
 
@@ -415,6 +433,17 @@ entities and invalid data without crashing.
 - **2026-10-03:** Profiles use explicit Save with an unsaved-changes marker (user preference).
 - **2026-10-03:** Overlay is visible while the game or the menu is focused, so ESP changes can be seen while tweaking.
 - **2026-10-03:** Local player validity uses pointer + position, never health 0–100 (the trainer can set health > 100).
+- **2026-10-03:** Added `game/player.py`: player parsing + validity checks are shared by local player and entities.
+  Each struct is read in ONE call (`PLAYER_READ_SIZE`) and unpacked locally with explicit `struct` formats.
+- **2026-10-03:** **Offset change:** `LOCAL_PLAYER_PTR` `0x17E0A8` → `0x18AC00`. The original value is `camera1`,
+  which switches to a death-cam object on death (the pointer changed 0x009DD2C8 → 0x00595410 in the diagnostic).
+  `0x18AC00` is `player1`, declared right before the `players` vector (0x18AC04 buf / 0x08 capacity / 0x0C count).
+  Old value kept as `CAMERA_PTR`. Verified across a death: player1 stayed 0x009DD2C8, camera switched to 0x00595410 and back.
+- **2026-10-03:** `DEAD` at `0x318` verified correct (0 → 1 → 0 across a death). It only *looked* broken because of the
+  camera pointer. A byte at `0x76` also flips 0 → 1 (likely the `state` enum, CS_ALIVE = 0 / CS_DEAD = 1). It's a backup
+  candidate, not in `offsets.py`. Health goes negative on death (-54 observed).
+- **2026-10-03:** `winapi/win32.py` started early (only `is_key_down`) for the dead-flag diagnostic. The rest comes in Phase 4.
+- **2026-10-03:** pytest uses `--import-mode=importlib` so test folders don't need `__init__.py`.
 - **2026-10-03:** src layout (`src/actrainer`) + `pyproject.toml` editable install, so tools, tests and
   `python -m actrainer` all import the package the same way.
 

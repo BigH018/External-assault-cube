@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "actrainer"
+version = "0.1.0"
+description = "Personal learning project: external trainer for AssaultCube 1.3.0.2 (offline bot matches only)"
+requires-python = ">=3.11"
+dependencies = [
+    "pymem>=1.13",
+    "PyQt5>=5.15",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# importlib mode lets test files share a basename in different folders without __init__.py files
+addopts = "--import-mode=importlib"
