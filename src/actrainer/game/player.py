@@ -103,7 +103,12 @@ def is_valid_local_player(player: PlayerSnapshot) -> bool:
 
 
 def is_valid_bot(player: PlayerSnapshot) -> bool:
-    """Validity for a BOT entry: sane positions plus a loose 0..100 health filter."""
+    """Validity for a BOT entry: sane positions plus a loose health filter.
+
+    Alive bots must have 0..100 health. Dead bots may have negative health (it goes below 0 on death),
+    so they get a wider lower bound.
+    """
+    min_health = config.BOT_DEAD_HEALTH_MIN if player.dead else config.BOT_HEALTH_MIN
     return (is_sane_position(player.head)
             and is_sane_position(player.feet)
-            and config.BOT_HEALTH_MIN <= player.health <= config.BOT_HEALTH_MAX)
+            and min_health <= player.health <= config.BOT_HEALTH_MAX)

@@ -1,6 +1,7 @@
 """ALL memory offsets for AssaultCube. This is the single source of truth.
 
-Never change a value here without telling the user why (see CLAUDE.md §6).
+Changing a value requires following the Offset change rule (CLAUDE.md §6): prove it, keep the old
+value in a comment, log it, and flag "OFFSET CHANGED". Never change an offset on a guess.
 Pure module: constants only.
 """
 
@@ -13,7 +14,7 @@ MODULE_NAME = "ac_client.exe"
 
 # These three sit together because the game declares them together:
 #   playerent *player1;  vector<playerent*> players { buf, alen (capacity), ulen (count) };
-LOCAL_PLAYER_PTR = 0x18AC00  # pointer: `player1`, the local player. Stays valid while dead.
+LOCAL_PLAYER_PTR = 0x18AC00  # pointer: `player1`, the local player. Stays valid while dead. (was 0x17E0A8 = camera1)
 ENTITY_LIST_PTR = 0x18AC04   # pointer: to an array of uint32 entity pointers (players.buf)
 PLAYER_COUNT = 0x18AC0C      # int: number of players, INCLUDING the local player (players.ulen)
 

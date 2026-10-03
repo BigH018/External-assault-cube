@@ -4,6 +4,28 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — Phase 2: Entities
+
+**Built**
+- `game/entities.py`: `read_player_count` (clamped to `MAX_ENTITIES`), `read_entity_pointers` (whole uint32 array in one
+  read), `read_entities(proc, local_address, include_dead=False)`. Skips null/garbage pointers, the local player,
+  entries failing the sanity check, unreadable entries and (by default) dead bots. A bad entity is never fatal.
+- `tools/phase2_entities.py`: 1 Hz table of every bot + raw slot list.
+- `tests/helpers/fake_game.py`: `make_player_buffer()` (moved from test_player) + `FakeProcess`.
+- `tests/game/test_entities.py`: 6 tests. 27 tests total, all passing.
+
+**Changes**
+- `is_valid_bot`: dead bots now use `BOT_DEAD_HEALTH_MIN` (-1000) as the lower bound. Health goes negative on death
+  (Phase 1 finding), so the old 0–100 filter would have thrown dead bots away as garbage.
+- CLAUDE.md: Offset change rule (prove → keep old value in a comment → log → flag "OFFSET CHANGED").
+
+**Verified against the running game (FFA deathmatch)**
+- Player count 8, slot 0 null, 7 bots with real names (PMB, zaiBan, XP|TheNameless, ...), health 100, sane positions.
+- **Finding:** in FFA, bots still have team 0/1, and 3 of 7 share the local player's team (0). This confirms that the
+  aimbot/ESP team check must be a user toggle and off for FFA.
+
+---
+
 ## 2026-10-03 — Phase 1: Memory (local player)
 
 **Built**

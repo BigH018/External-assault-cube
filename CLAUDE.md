@@ -89,7 +89,7 @@ assault cube project/
   README.md                     ✅ short overview, install/run, limits
   requirements.txt              ✅ pinned-minimum dependencies
   .gitignore                    ✅ Python + local profiles/logs
-  pyproject.toml                ✅ package metadata (src layout, editable install) + pytest config (importlib mode)
+  pyproject.toml                ✅ package metadata (src layout, editable install) + pytest config (importlib mode, pythonpath=tests)
   docs/
     DEVLOG.md                   ✅ dated log of what was built, decisions and bugs fixed
   profiles/
@@ -97,10 +97,13 @@ assault cube project/
   tools/
     phase1_local_player.py      ✅ live print of local player position/angles/health/team (auto-reattach)
     phase1_dead_diag.py         ✅ F9 snapshots (alive/dead/alive) of the player struct; prints changed offsets + camera vs player ptr
-    phase2_entities.py          🔲 [2] live print of every bot's name/health/team/head pos
+    phase2_entities.py          ✅ live table of every bot (name/hp/armor/team/head/distance/state) + raw slot list
     phase8_view_matrix.py       🔲 [8] prints one bot's screen coords to verify world_to_screen
   tests/
+    helpers/__init__.py         ✅ makes shared helpers importable (pytest pythonpath = tests)
+    helpers/fake_game.py        ✅ make_player_buffer() + FakeProcess (dict-backed memory) for game-layer tests
     game/test_player.py         ✅ player struct parsing + local/bot validity checks
+    game/test_entities.py       ✅ entity list: null/local/dead/garbage/unreadable skipping, bad count, uint32 pointers
     maths/test_vectors.py       🔲 [3] vector helper tests
     maths/test_angles.py        🔲 [3] aim angles, normalisation, shortest-path smoothing, FOV
     maths/test_projection.py    🔲 [3] world_to_screen with hand-built matrices
@@ -130,7 +133,7 @@ assault cube project/
       structs.py                ✅ Vec3, PlayerSnapshot, GameState (frozen, pure data)
       player.py                 ✅ one-read player struct parsing (parse_player is pure) + local/bot validity checks
       local_player.py           ✅ [1] read local player; 🔲 [6] write view angles; 🔲 [7] write player values
-      entities.py               🔲 [2] iterate entity list -> list[PlayerSnapshot]
+      entities.py               ✅ read_player_count / read_entity_pointers (one read) / read_entities -> list[PlayerSnapshot]
       view.py                   🔲 [8] read view matrix + game FOV
       state.py                  🔲 [6] read_game_state(): one call that builds a full GameState per tick
     maths/
@@ -211,8 +214,17 @@ Keep each tick fast. **On a read error: log it, skip the tick, never crash.** If
 
 ## 6. Offsets summary (`src/actrainer/offsets.py`)
 
-All offsets live in `offsets.py` with `GAME_VERSION = "1.3.0.2"`. **Never change a value there without
-telling the user why.** Module: `ac_client.exe` (32-bit).
+All offsets live in `offsets.py` with `GAME_VERSION = "1.3.0.2"`. Module: `ac_client.exe` (32-bit).
+
+### Offset change rule
+You may change an offset yourself when you suspect it is wrong, **only if** you:
+1. **Prove it first** with a diagnostic, memory scan or test showing the old value is wrong and the new one is right.
+   If the proof needs the user in-game, write the diagnostic and ask them to run it.
+2. **Keep the old value as a comment** next to the new one in `offsets.py`.
+3. **Record** old value, new value, evidence and reason in the Decision log (§14) and `docs/DEVLOG.md`.
+4. **Flag it** at the very top of the phase summary as **"OFFSET CHANGED"**.
+
+**Never change an offset based on a guess alone.**
 
 | Static (module base +) | Offset | Kind |
 |---|---|---|
@@ -247,8 +259,10 @@ entities and invalid data without crashing.
   `config.WORLD_COORD_LIMIT`. **Never use health 0–100 for the local player.** The Player tab can set
   health to e.g. 999, and the trainer would then think the local player is invalid. Health only gets a very
   wide sanity range (`config.LOCAL_HEALTH_SANE_*`).
-- **Bots:** same pointer + position checks, plus a loose health filter (`config.BOT_HEALTH_*`, around 0–100)
-  to reject garbage entries.
+- **Bots:** same pointer + position checks, plus a loose health filter to reject garbage entries:
+  alive → `BOT_HEALTH_MIN..MAX` (0–100); dead → `BOT_DEAD_HEALTH_MIN..MAX` (health goes negative on death).
+- **Entity list:** count clamped to `config.MAX_ENTITIES`; the pointer array is read in one call; one bad entity is
+  logged at DEBUG and skipped, never fatal. `read_entities(..., include_dead=False)` skips dead bots by default.
 
 ---
 
@@ -357,8 +371,9 @@ entities and invalid data without crashing.
   the source-level layout.
 - **pymem log noise:** pymem installs its own DEBUG handler on import. `memory/process.py` sets the `pymem` logger to WARNING.
 - **Default player name** in AC is `unarmed`. Seeing that name means the read works.
-- **Team check in free-for-all modes:** team values may still match, so teammates would be skipped. Team check is
-  a user toggle. There's no game-mode offset yet.
+- **Team check in free-for-all modes (confirmed Phase 2):** in FFA deathmatch, bots still have team 0/1 and some share
+  the local player's team. Team check would wrongly skip them, so it must stay a user toggle (off for FFA).
+  There's no game-mode offset yet.
 
 ---
 
@@ -387,7 +402,8 @@ entities and invalid data without crashing.
 **Don't**
 - Don't add packages without asking.
 - Don't import pymem, Qt or ctypes outside their allowed folders.
-- Don't hardcode offsets outside `offsets.py`, or change `offsets.py` values silently.
+- Don't hardcode offsets outside `offsets.py`. Don't change `offsets.py` values without following the
+  Offset change rule (§6): proof, old value in a comment, decision log + DEVLOG, "OFFSET CHANGED" flag.
 - Don't use `print` in library code.
 - Don't let the UI read or write memory.
 - Don't add network code, injection, evasion, obfuscation or distribution features.
@@ -399,7 +415,7 @@ entities and invalid data without crashing.
 
 - [x] **Step 0:** CLAUDE.md, README, requirements, .gitignore, plan. *(approved 2026-10-03)*
 - [x] Phase 1: Memory: attach, read local player, live debug print *(done 2026-10-03: local player pointer corrected to 0x18AC00; dead flag 0x318 verified)*
-- [ ] Phase 2: Entities: print every bot
+- [x] Phase 2: Entities: print every bot *(built + verified against running game: 7 bots read; awaiting user test)*
 - [ ] Phase 3: Maths: angles, projection, skeleton + tests
 - [ ] Phase 4: Settings + keybinds core + tests
 - [ ] Phase 5: Menu shell (all tabs wired to settings, profiles, menu hotkey)
@@ -409,7 +425,7 @@ entities and invalid data without crashing.
 - [ ] Phase 9: Overlay + ESP + FOV circle
 - [ ] Phase 10: Polish (panic, reattach, status, conflicts, error handling, docs)
 
-**Next:** Phase 2 (entities).
+**Next:** user tests Phase 2 → commit → Phase 3 (maths).
 
 ---
 
@@ -444,6 +460,12 @@ entities and invalid data without crashing.
   candidate, not in `offsets.py`. Health goes negative on death (-54 observed).
 - **2026-10-03:** `winapi/win32.py` started early (only `is_key_down`) for the dead-flag diagnostic. The rest comes in Phase 4.
 - **2026-10-03:** pytest uses `--import-mode=importlib` so test folders don't need `__init__.py`.
+- **2026-10-03:** Offset change rule added (§6): offsets may be changed only with proof, old value kept in a comment,
+  logged in decision log + DEVLOG, and flagged "OFFSET CHANGED" in the phase summary.
+- **2026-10-03:** Dead bots use a wider health lower bound (`BOT_DEAD_HEALTH_MIN`), since health goes negative on death.
+  Otherwise dead bots would be rejected as garbage.
+- **2026-10-03:** Shared test fakes live in `tests/helpers/` (pytest `pythonpath = ["tests"]`). `FakeProcess` is
+  duck-typed (read_bytes / read_u32 / read_i32 / module_base), so game-layer code is tested without the game.
 - **2026-10-03:** src layout (`src/actrainer`) + `pyproject.toml` editable install, so tools, tests and
   `python -m actrainer` all import the package the same way.
 

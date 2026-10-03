@@ -22,3 +22,5 @@ where = ["src"]
 testpaths = ["tests"]
 # importlib mode lets test files share a basename in different folders without __init__.py files
 addopts = "--import-mode=importlib"
+# lets tests import shared helpers as `from helpers.fake_game import ...`
+pythonpath = ["tests"]

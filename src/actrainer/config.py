@@ -28,8 +28,14 @@ LOCAL_HEALTH_SANE_MIN = -1_000
 LOCAL_HEALTH_SANE_MAX = 1_000_000
 
 # Bots: a loose filter to reject garbage entity entries. Bots never get trainer edits.
+# Alive bots must be in 0..100. Health goes NEGATIVE on death (-54 observed), so dead bots
+# get a wider lower bound instead.
 BOT_HEALTH_MIN = 0
 BOT_HEALTH_MAX = 100
+BOT_DEAD_HEALTH_MIN = -1_000
+
+# The game's player vector never holds more than a few dozen entries. A bigger count means a bad read.
+MAX_ENTITIES = 64
 
 # --- Strings -----------------------------------------------------------------
 
