@@ -4,6 +4,31 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — Phase 3: Maths
+
+**Built**
+- `maths/vectors.py`: Vec3 helpers (add/sub/scale/dot/cross/length/length_2d/distance/normalize/lerp).
+- `maths/angles.py`: `Angles`, `calc_aim_angles`, `direction_from_angles`, `normalize_yaw`, `clamp_pitch`, `yaw_delta`
+  (shortest signed), `angular_distance` (true angle via dot product), `is_within_fov`, `smooth_angles` (1/smoothing per tick,
+  shortest yaw path).
+- `maths/projection.py`: `world_to_screen` (column-major, rejects w < 0.001, y flipped), `fov_circle_radius`.
+- `maths/skeleton.py`: proportion table (`JOINTS`), `BONES`, `facing_vectors`, `build_skeleton`.
+- `tests/helpers/gl_matrix.py`: pure-Python GL matrices + `ac_view_projection()` that mimics AC's `transplayer()`.
+- Tests: vectors, angles, projection, skeleton. **107 tests total, all passing.**
+- `tools/phase3_angles_check.py`: read-only in-game comparison of your view angles vs `calc_aim_angles`.
+
+**Decisions / findings**
+- Yaw formula derived from AC's `vecfromyawpitch()`: forward = (sin yaw, −cos yaw) → `yaw = atan2(dx, −dy)` = `atan2(dy, dx) + 90°`.
+- The projection tests build the matrix the way AC's renderer does, so the angle convention and the projection are
+  checked against each other. A point along the view direction lands at screen centre for 7 yaw/pitch combos.
+- **Bug caught by tests:** skeleton "right" was `forward × up`, which projects to screen-LEFT, because AC's world is
+  left-handed ("Z-up LH quake style"). Fixed to `up × forward`.
+- FOV check uses the true angle between direction vectors, so it's correct near straight up/down (a 180° yaw difference at
+  pitch 89 is only 2°).
+- Smoothing speed depends on tick rate (noted for Phase 6).
+
+---
+
 ## 2026-10-03 — Phase 2: Entities
 
 **Built**

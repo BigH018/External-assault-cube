@@ -98,16 +98,18 @@ assault cube project/
     phase1_local_player.py      ✅ live print of local player position/angles/health/team (auto-reattach)
     phase1_dead_diag.py         ✅ F9 snapshots (alive/dead/alive) of the player struct; prints changed offsets + camera vs player ptr
     phase2_entities.py          ✅ live table of every bot (name/hp/armor/team/head/distance/state) + raw slot list
+    phase3_angles_check.py      ✅ read-only: your view angles vs calc_aim_angles for the bot nearest your crosshair
     phase8_view_matrix.py       🔲 [8] prints one bot's screen coords to verify world_to_screen
   tests/
     helpers/__init__.py         ✅ makes shared helpers importable (pytest pythonpath = tests)
+    helpers/gl_matrix.py        ✅ pure-Python GL matrix maths + ac_view_projection() that mimics AC's transplayer()
     helpers/fake_game.py        ✅ make_player_buffer() + FakeProcess (dict-backed memory) for game-layer tests
     game/test_player.py         ✅ player struct parsing + local/bot validity checks
     game/test_entities.py       ✅ entity list: null/local/dead/garbage/unreadable skipping, bad count, uint32 pointers
-    maths/test_vectors.py       🔲 [3] vector helper tests
-    maths/test_angles.py        🔲 [3] aim angles, normalisation, shortest-path smoothing, FOV
-    maths/test_projection.py    🔲 [3] world_to_screen with hand-built matrices
-    maths/test_skeleton.py      🔲 [3] skeleton point generation
+    maths/test_vectors.py       ✅ vector helper tests
+    maths/test_angles.py        ✅ aim angles (cardinal dirs, +90 offset, round trip), normalisation, shortest-path smoothing, FOV
+    maths/test_projection.py    ✅ world_to_screen: column-major, y flip, behind-camera, AC-engine matrix centre/up/right tests, FOV circle
+    maths/test_skeleton.py      ✅ skeleton heights, symmetry, perpendicular to facing, crouch scaling, bones
     settings/test_store.py      🔲 [4] profile round-trip, defaults, schema migration
     input/test_keybinds.py      🔲 [4] hold/toggle/press-once state machine, conflicts
     features/test_aimbot.py     🔲 [6] target selection + priority + filters
@@ -137,10 +139,11 @@ assault cube project/
       view.py                   🔲 [8] read view matrix + game FOV
       state.py                  🔲 [6] read_game_state(): one call that builds a full GameState per tick
     maths/
-      vectors.py                🔲 [3] vector helpers (sub, length, distance, ...)
-      angles.py                 🔲 [3] aim angles, normalisation, smoothing, angular FOV checks
-      projection.py             🔲 [3] world_to_screen (column-major OpenGL matrix)
-      skeleton.py               🔲 [3] approximate stick-figure points from head/feet/yaw
+      __init__.py               ✅ package marker
+      vectors.py                ✅ add/sub/scale/dot/cross/length/length_2d/distance/normalize/lerp, UP
+      angles.py                 ✅ Angles; calc_aim_angles, direction_from_angles, normalize_yaw, clamp_pitch, yaw_delta, angular_distance, is_within_fov, smooth_angles
+      projection.py             ✅ world_to_screen (column-major, rejects w<0.001, y flipped), fov_circle_radius
+      skeleton.py               ✅ JOINTS proportions, BONES, facing_vectors, build_skeleton -> Skeleton
     features/
       primitives.py             🔲 [9] pure draw-primitive dataclasses (Line, Rect, Circle, Text)
       aimbot.py                 🔲 [6] target selection + smoothed aiming (no Qt)
@@ -343,7 +346,9 @@ entities and invalid data without crashing.
 - **32-bit pointers:** read pointers as 4-byte `uint32`. Reading 8 bytes breaks every pointer chain.
 - **Pointers vs direct values:** local player and entity list are *dereferenced*. The view matrix is read *in place*.
 - **Yaw convention:** AC yaw is offset by 90° from standard `atan2` maths, and angles are in degrees.
-  Derive the formula, unit-test it, normalise yaw to 0–360, clamp pitch to -90..90.
+  From the game's `vecfromyawpitch()`: forward = (sin yaw·cos pitch, −cos yaw·cos pitch, sin pitch), so yaw 0 faces −y,
+  90 faces +x, and `yaw = atan2(dx, −dy)` = `atan2(dy, dx) + 90°`. Pitch = `atan2(dz, horizontal dist)`, + is up.
+  Normalise yaw to 0–360, clamp pitch to -90..90.
   **Smooth along the shortest yaw direction** (no spinning the long way round past 0/360).
 - **View matrix is OpenGL column-major.** `clip.x = m[0]*x + m[4]*y + m[8]*z + m[12]` (etc.).
   Reject points behind the camera (`w < 0.001`). NDC → pixels with **y flipped**.
@@ -363,6 +368,10 @@ entities and invalid data without crashing.
 - **Camera pointer ≠ local player:** `0x17E0A8` (camera1) points at the player only while alive. On death it
   switches to a static death-cam object (e.g. `0x00595410`, a different class). Reading player fields through it
   gives an empty name, `dead = 0` and ASCII file paths where ammo should be. Always use `LOCAL_PLAYER_PTR` (`0x18AC00`).
+- **AC's world is LEFT-handed** (renderer: "Z-up LH quake style"). The player's screen-right is `up × forward`;
+  `forward × up` points LEFT. Caught by `test_up_is_up_and_right_is_right`.
+- **Smoothing depends on tick rate:** each tick moves 1/smoothing of the remaining angle, so a higher tick rate aims faster.
+- **FOV circle assumes the game FOV is horizontal** (AC derives fovy from fov and aspect). Confirm in Phase 9.
 - **Health goes negative on death** (e.g. -54). Use `dead` (`0x318`) for alive/dead, never `health > 0`.
 - **Finding offsets by diffing:** take struct snapshots in state A / B / A again (`tools/phase1_dead_diag.py`).
   Values equal in both A snapshots but different in B are "STRONG" candidates. This filters out timers and movement noise.
@@ -383,7 +392,8 @@ entities and invalid data without crashing.
 - Dataclasses for data. Frozen dataclasses for snapshots (`Vec3`, `PlayerSnapshot`, `GameState`).
 - Small functions. Docstrings on every public function/class.
 - `logging` only (`log = logging.getLogger(__name__)`). **No `print` in library code.** `tools/` scripts may print.
-- No magic numbers. Constants go in `config.py`, offsets in `offsets.py`.
+- No magic numbers. User-tunable/project constants go in `config.py`, offsets in `offsets.py`. Fixed maths/domain
+  constants (e.g. skeleton proportions, `MIN_CLIP_W`) live as named module-level constants next to the maths that uses them.
 - Brief comments explaining the **why** behind maths and memory code (the user is learning).
 - Simple, readable code over clever code.
 - Tests mirror the source layout under `tests/`.
@@ -416,7 +426,7 @@ entities and invalid data without crashing.
 - [x] **Step 0:** CLAUDE.md, README, requirements, .gitignore, plan. *(approved 2026-10-03)*
 - [x] Phase 1: Memory: attach, read local player, live debug print *(done 2026-10-03: local player pointer corrected to 0x18AC00; dead flag 0x318 verified)*
 - [x] Phase 2: Entities: print every bot *(built + verified against running game: 7 bots read; awaiting user test)*
-- [ ] Phase 3: Maths: angles, projection, skeleton + tests
+- [x] Phase 3: Maths: angles, projection, skeleton + tests *(107 tests passing; awaiting in-game angle check)*
 - [ ] Phase 4: Settings + keybinds core + tests
 - [ ] Phase 5: Menu shell (all tabs wired to settings, profiles, menu hotkey)
 - [ ] Phase 6: Controller + aimbot
@@ -425,7 +435,7 @@ entities and invalid data without crashing.
 - [ ] Phase 9: Overlay + ESP + FOV circle
 - [ ] Phase 10: Polish (panic, reattach, status, conflicts, error handling, docs)
 
-**Next:** user tests Phase 2 → commit → Phase 3 (maths).
+**Next:** user runs phase3_angles_check → commit → Phase 4 (settings + keybinds core).
 
 ---
 
@@ -464,6 +474,13 @@ entities and invalid data without crashing.
   logged in decision log + DEVLOG, and flagged "OFFSET CHANGED" in the phase summary.
 - **2026-10-03:** Dead bots use a wider health lower bound (`BOT_DEAD_HEALTH_MIN`), since health goes negative on death.
   Otherwise dead bots would be rejected as garbage.
+- **2026-10-03:** Yaw formula derived from AC's `vecfromyawpitch()` and cross-checked by building the view matrix
+  exactly like AC's `transplayer()` in tests (`helpers/gl_matrix.py`). A point along `direction_from_angles` projects to
+  screen centre at 7 yaw/pitch combos.
+- **2026-10-03:** FOV distance uses the true angle between direction vectors (acos of dot), not hypot(yaw diff, pitch diff),
+  so it stays correct when looking steeply up or down.
+- **2026-10-03:** Skeleton right vector is `up × forward` (AC world is left-handed). The first version used `forward × up`
+  and the projection test showed it landing screen-left.
 - **2026-10-03:** Shared test fakes live in `tests/helpers/` (pytest `pythonpath = ["tests"]`). `FakeProcess` is
   duck-typed (read_bytes / read_u32 / read_i32 / module_base), so game-layer code is tested without the game.
 - **2026-10-03:** src layout (`src/actrainer`) + `pyproject.toml` editable install, so tools, tests and
