@@ -32,6 +32,15 @@ def read_fov(proc: GameProcess) -> float:
     return proc.read_f32(proc.module_base + offsets.VIEW_FOV)
 
 
+def write_fov(proc: GameProcess, fov: float) -> None:
+    """Set the game's horizontal FOV. The game renders whatever is written (no clamping), so callers must clamp.
+
+    Raises:
+        MemoryAccessError: if the write fails.
+    """
+    proc.write_f32(proc.module_base + offsets.VIEW_FOV, fov)
+
+
 def horizontal_fov_from_matrix(matrix: tuple[float, ...]) -> float:
     """Horizontal FOV (degrees) implied by the matrix.
 

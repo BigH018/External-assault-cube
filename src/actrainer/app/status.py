@@ -16,4 +16,5 @@ class ControllerStatus:
     entity_count: int = 0            # valid bots (Phase 6+), or raw player count before that
     tick_rate: float = 0.0           # measured ticks per second
     game_focused: bool = False
+    game_fov: float = 0.0            # current game FOV in degrees (0 if not in a match)
     player_values: dict[str, int] = field(default_factory=dict)  # field id -> current in-game value (empty if not in a match)

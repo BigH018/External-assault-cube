@@ -5,7 +5,8 @@ A QTimer fires at settings.general.tick_rate_hz. Each tick:
     2. make sure we're attached (throttled retry; detach if the game died)
     3. read the game state (local player + live bots)
     4. aimbot -> write view angles (only while enabled, key active and the GAME window is focused)
-    5. player values: pending set-now requests + freezes -> int writes (skipped while dead)
+    5. player values: pending set-now requests + freezes -> int writes (skipped while dead);
+       game FOV: set-now / keep-applied (original FOV restored on panic and quit)
     6. ESP + FOV circle -> OverlayFrame (client rect + primitives) -> overlay (visible only while the
        game or our own menu is focused)
     7. emit status to the menu (throttled)
@@ -18,15 +19,16 @@ import logging
 import time
 from collections.abc import Callable
 
-from PyQt5.QtCore import QObject, QTimer
+from PyQt5.QtCore import QObject, Qt, QTimer
 from PyQt5.QtWidgets import QApplication
 
 from actrainer import config
 from actrainer.app.status import ControllerStatus
-from actrainer.features import aimbot, esp, player_values
+from actrainer.features import aimbot, esp, game_fov, player_values
 from actrainer.features.primitives import OverlayFrame
 from actrainer.game.local_player import VALUE_FIELD_OFFSETS, snapshot_value, write_player_value, write_view_angles
 from actrainer.game.state import read_game_state
+from actrainer.game.view import write_fov
 from actrainer.game.structs import GameState
 from actrainer.input import actions
 from actrainer.input.keybinds import ActionStates, KeybindEngine
@@ -98,12 +100,16 @@ class Controller(QObject):
         self.state: GameState | None = None   # latest snapshot (None = not in a match)
         self.aim_target_address: int | None = None  # bot currently being aimed at (for ESP highlight later)
         self._pending_sets: list[str] = []          # value ids from "Set now" buttons/hotkeys, applied next tick
+        self._fov_requested = False                 # "Set game FOV now" pending
+        self._original_fov: float | None = None     # game FOV before our first write (restored on panic/quit)
 
         self._timer = QTimer(self)
+        self._timer.setTimerType(Qt.PreciseTimer)  # the default coarse timer (~15.6 ms steps) makes 60 Hz uneven
         self._timer.timeout.connect(self.tick)
         signals.settings_changed.connect(self._on_settings_changed)
         signals.bind_capture_changed.connect(self._on_capture)
         signals.set_value_requested.connect(self._on_set_value)
+        signals.game_fov_set_requested.connect(self._on_set_fov)
 
     # --- lifecycle -------------------------------------------------------------------
 
@@ -119,6 +125,7 @@ class Controller(QObject):
         self.stop()
         self.signals.overlay_frame.emit(OverlayFrame())  # hide the overlay
         self.settings.player.unfreeze_all()
+        self._restore_fov()
         self.process.detach()
 
     @property
@@ -141,6 +148,7 @@ class Controller(QObject):
                 if self._read_game():
                     self._run_aimbot(states)
                     self._apply_player_values()
+                    self._apply_game_fov()
             self._drop_unapplied_sets()
             self._update_overlay()
             if now >= self._next_status:
@@ -185,6 +193,7 @@ class Controller(QObject):
         self._offsets_ok = False
         self._entity_count = 0
         self._game_focused = False
+        self._original_fov = None  # a restarted game starts from its own config again
         self.state = None
 
     def _read_game(self) -> bool:
@@ -217,10 +226,41 @@ class Controller(QObject):
             for value_id in requested:
                 self.signals.notice.emit(player_values.describe(value_id, self.settings.player))
 
+    def _apply_game_fov(self) -> None:
+        """Write the game FOV for a set-now request or while keep-applied is on."""
+        assert self.state is not None
+        requested, self._fov_requested = self._fov_requested, False
+        new = game_fov.plan_fov_write(self.state.fov, self.settings.view, requested)
+        if new is None:
+            if requested:
+                self.signals.notice.emit(f"Game FOV is already {self.state.fov:g}°")
+            return
+        if self._original_fov is None:
+            self._original_fov = self.state.fov
+        try:
+            write_fov(self.process, new)
+        except MemoryAccessError as exc:
+            log.debug("fov write failed: %s", exc)
+            return
+        if requested:
+            self.signals.notice.emit(f"Game FOV set to {new:g}°")
+
+    def _restore_fov(self) -> None:
+        """Put the game's FOV back to what it was before we first changed it."""
+        if self._original_fov is None or not self.process.is_attached:
+            return
+        try:
+            write_fov(self.process, self._original_fov)
+            log.info("game FOV restored to %g", self._original_fov)
+        except MemoryAccessError as exc:
+            log.debug("fov restore failed: %s", exc)
+        self._original_fov = None
+
     def _drop_unapplied_sets(self) -> None:
         """Set-now requests that couldn't run this tick (not attached / not in a match) are dropped, with a notice."""
-        if self._pending_sets:
+        if self._pending_sets or self._fov_requested:
             self._pending_sets = []
+            self._fov_requested = False
             self.signals.notice.emit("Not in a match: nothing written")
 
     def _update_overlay(self) -> None:
@@ -267,6 +307,10 @@ class Controller(QObject):
             self._flip("esp", "enabled")
         if states.fired(actions.AIMBOT_ENABLE_TOGGLE):
             self._flip("aimbot", "enabled")
+        if states.fired(actions.SET_GAME_FOV):
+            self._fov_requested = True
+        if states.fired(actions.FREEZE_GAME_FOV):
+            self._flip("view", "freeze")
         for value_id in (*config.STAT_VALUES, *config.WEAPONS):
             if states.fired(actions.set_action_id(value_id)):
                 self.signals.set_value_requested.emit(value_id)
@@ -291,8 +335,10 @@ class Controller(QObject):
         self.settings.aimbot.enabled = False
         self.settings.esp.enabled = False
         self.settings.player.unfreeze_all()
+        self.settings.view.freeze = False
+        self._restore_fov()
         self._engine.reset_toggles()
-        log.warning("PANIC: all features disabled, all values unfrozen")
+        log.warning("PANIC: all features disabled, all values unfrozen, FOV restored")
         self._announce("panic")
 
     # --- signal handlers ----------------------------------------------------------------------
@@ -307,6 +353,9 @@ class Controller(QObject):
     def _on_set_value(self, value_id: str) -> None:
         if value_id not in self._pending_sets:
             self._pending_sets.append(value_id)  # applied on the next tick, inside the normal read/write cycle
+
+    def _on_set_fov(self) -> None:
+        self._fov_requested = True
 
     def _apply_tick_rate(self) -> None:
         self._timer.setInterval(max(1, round(MS_PER_SECOND / self.settings.general.tick_rate_hz)))
@@ -326,6 +375,7 @@ class Controller(QObject):
             entity_count=self._entity_count,
             tick_rate=self._tick_rate,
             game_focused=self._game_focused if hwnd is not None else False,
+            game_fov=self.state.fov if self.state else 0.0,
             player_values=({f: snapshot_value(self.state.local, f) for f in VALUE_FIELD_OFFSETS}
                            if self.state else {}),
         )

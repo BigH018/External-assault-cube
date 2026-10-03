@@ -13,11 +13,11 @@ from PyQt5.QtWidgets import QCheckBox, QGridLayout, QLabel, QPushButton, QVBoxLa
 from actrainer import config
 from actrainer.app.status import ControllerStatus
 from actrainer.game.local_player import mag_field, reserve_field
-from actrainer.input.actions import set_action_id
+from actrainer.input.actions import SET_GAME_FOV, set_action_id
 from actrainer.settings.models import Settings
 from actrainer.settings.signals import AppSignals
-from actrainer.ui.binder import KeybindBinder, make_spinbox, set_quietly
-from actrainer.ui.layout import group, hint, scrollable
+from actrainer.ui.binder import KeybindBinder, SettingBinder, make_spinbox, set_quietly
+from actrainer.ui.layout import group, hint, row, scrollable
 
 NOTICE_CLEAR_MS = 4000
 NO_VALUE = "–"
@@ -51,10 +51,24 @@ class PlayerTab(QWidget):
         for r, weapon in enumerate(config.WEAPONS, start=1):
             self._weapon_row(ag, r, weapon)
 
+        self.view_binder = SettingBinder(settings, signals, "view")
+        view, vg = group("Game FOV")
+        self.fov_now = QLabel(NO_VALUE)
+        self.fov_now.setObjectName("value")
+        self.fov_now.setToolTip("Current in-game FOV")
+        fov_set = QPushButton("Set now")
+        fov_set.clicked.connect(signals.game_fov_set_requested.emit)
+        vg.addWidget(self.view_binder.slider("fov", "Field of view", suffix="°"))
+        vg.addWidget(row(QLabel("Now"), self.fov_now, None, fov_set, self.keys.button(SET_GAME_FOV),
+                         self.view_binder.checkbox("freeze", "Keep applied")))
+        vg.addWidget(hint("The game's own horizontal FOV (what /fov changes, default 90). Panic and quitting restore "
+                          "the FOV you had before the trainer changed it."))
+
         content = QVBoxLayout()
         content.addWidget(hint("Values are written only while attached and in a match. Freeze re-applies the value "
                                "every tick. More keys (freeze toggles) are on the Keybinds tab."))
         content.addWidget(self.notice)
+        content.addWidget(view)
         content.addWidget(stats)
         content.addWidget(ammo)
         content.addStretch(1)
@@ -141,6 +155,7 @@ class PlayerTab(QWidget):
         for label, fields in self._now_labels.values():
             values = [status.player_values.get(f) for f in fields]
             label.setText(NO_VALUE if None in values else " / ".join(str(v) for v in values))
+        self.fov_now.setText(f"{status.game_fov:g}°" if status.game_fov else NO_VALUE)
 
     def show_notice(self, text: str) -> None:
         self.notice.setText(text)
@@ -150,3 +165,4 @@ class PlayerTab(QWidget):
         for loader in self._loaders:
             loader()
         self.keys.load()
+        self.view_binder.load()

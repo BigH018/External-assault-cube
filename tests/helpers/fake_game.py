@@ -101,6 +101,9 @@ class FakeProcess:
     def write_i32(self, address: int, value: int) -> None:
         self.write_bytes(address, struct.pack("<i", value))
 
+    def write_f32(self, address: int, value: float) -> None:
+        self.write_bytes(address, struct.pack("<f", value))
+
 
 IDENTITY_MATRIX = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
 DEFAULT_FOV = 90.0

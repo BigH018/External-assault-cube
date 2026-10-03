@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton, QTab
 
 from actrainer import config
 from actrainer.app.status import ControllerStatus
+from actrainer.input.keybinds import find_conflicts
 from actrainer.settings.models import Settings
 from actrainer.settings.signals import AppSignals
 from actrainer.ui.layout import row
@@ -71,6 +72,7 @@ class MenuWindow(QWidget):
         signals.status_changed.connect(self.show_status)
         session.state_changed.connect(self._update_title)
         self._update_title()
+        self._update_keybinds_badge()
         self.show_status(ControllerStatus())
 
     # --- tabs -------------------------------------------------------------------------
@@ -82,11 +84,18 @@ class MenuWindow(QWidget):
         """Refresh every control from settings (after a profile load, panic, hotkey...)."""
         for tab in self.all_tabs():
             tab.load_from_settings()  # type: ignore[attr-defined]
+        self._update_keybinds_badge()
 
     def _on_settings_changed(self, section: str) -> None:
         # A bind can be shown on several tabs (e.g. aimbot key on Aimbot + Keybinds): keep them in sync.
         if section == "keybinds":
             self.reload_all()
+
+    def _update_keybinds_badge(self) -> None:
+        """Show ⚠ on the Keybinds tab when any key is bound to several actions."""
+        index = self.tabs.indexOf(self.keybinds_tab)
+        conflicts = find_conflicts(self.settings.keybinds.binds)
+        self.tabs.setTabText(index, "Keybinds ⚠" if conflicts else "Keybinds")
 
     def _update_title(self) -> None:
         marker = " *" if self.session.dirty else ""

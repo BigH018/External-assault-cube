@@ -18,6 +18,8 @@ DEFAULT_PROFILE = "default"           # committed and read-only (overwrite with 
 PROFILE_NAME_MAX_LENGTH = 40
 LOGS_DIR = PROJECT_ROOT / "logs"      # git-ignored
 LOG_FILE = "actrainer.log"
+LOCK_FILE_NAME = "actrainer.lock"     # in the system temp dir; stops two trainers fighting over the game
+LOCK_TIMEOUT_MS = 100
 
 # --- Controller timing --------------------------------------------------------
 ATTACH_RETRY_S = 1.0         # how often to try attaching while the game isn't found
@@ -84,6 +86,10 @@ AIM_FOV_RANGE = (1.0, 180.0)           # degrees from the crosshair
 AIM_SMOOTHING_RANGE = (1.0, 30.0)      # 1 = instant snap
 AIM_MAX_DISTANCE_RANGE = (10.0, 2000.0)  # world units (player eye height is about 4.5 units)
 LINE_THICKNESS_RANGE = (1, 10)         # pixels
+# Game FOV (written to offsets.VIEW_FOV). Verified 2026-10-03: the game renders any written value (30..170 tested)
+# without clamping. Above ~150 the image distorts badly, and 180 breaks the projection maths.
+GAME_FOV_RANGE = (30.0, 150.0)         # degrees, horizontal
+GAME_FOV_EPSILON = 0.01                # smaller differences count as "already applied"
 
 # Value caps for the Player tab: no negatives, sensible maximums.
 STAT_VALUE_RANGES = {

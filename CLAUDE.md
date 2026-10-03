@@ -8,8 +8,8 @@ This file is the project's memory. A fresh session must be able to work from thi
 ## 1. Project purpose and hard limits
 
 A personal **learning project**: an external trainer for **AssaultCube 1.3.0.2 (Lockdown Edition)**,
-written in Python. It has a PyQt5 menu, a customisable aimbot, an ESP overlay, player value editing
-and a keybind system.
+written in Python. It has a PyQt5 menu, a customisable aimbot, an ESP overlay, player value editing,
+a game FOV changer and a keybind system. **All 10 build phases are complete (2026-10-03).**
 
 AssaultCube is a free, open-source FPS that runs offline against bots and has no anti-cheat. That makes
 it the standard beginner target for learning about process memory, pointer chains, vector maths,
@@ -86,9 +86,10 @@ Status markers: ✅ exists, 🔲 planned (phase number in brackets).
 ```
 assault cube project/
   CLAUDE.md                     ✅ this file: project memory and rules
-  README.md                     ✅ short overview, install/run, limits
+  README.md                     ✅ overview, install/run, full usage guide (menu, hotkeys, troubleshooting), limits
   requirements.txt              ✅ pinned-minimum dependencies
   .gitignore                    ✅ Python + local profiles/logs
+  .gitattributes                ✅ LF line endings everywhere (no CRLF warnings)
   pyproject.toml                ✅ package metadata (src layout, editable install) + pytest config (importlib mode, pythonpath=tests)
   docs/
     DEVLOG.md                   ✅ dated log of what was built, decisions and bugs fixed
@@ -121,30 +122,36 @@ assault cube project/
     ui/test_binder.py           ✅ controls write settings/emit, reload after replace_with, keybind binder
     ui/test_profile_session.py  ✅ dirty flag, save/save as/load/rename/reset on the shared Settings
     ui/test_overlay.py          ✅ painter renders each primitive to the right pixels; window follows frames; repaint rate
-    ui/test_menu_window.py      ✅ builds 5 tabs, title marker, cross-tab bind sync, conflict banner, refresh, status pill
+    ui/test_menu_window.py      ✅ builds 5 tabs, title marker, cross-tab bind sync, conflict banner + tab badge, refresh, status pill, FOV readout
     app/test_controller.py      ✅ hotkeys, capture suspension, attach throttling, status, tick rate; aimbot conditions + toggle;
-                                   player values; overlay frames (game/menu focus, hide once, nothing to draw)
+                                   player values; overlay frames (game/menu focus, hide once, nothing to draw); game FOV set/keep/restore
+    app/test_main.py            ✅ single-instance lock, unhandled exceptions logged instead of fatal
     features/test_aimbot.py     ✅ aim point, FOV/dead/team/distance filters, priorities + tie-break, snap/smooth, body lower, dead local, 0/360
     features/test_player_values.py ✅ field map, clamped targets, only-changed writes, freezes, no dup, dead = no writes, describe
+    features/test_game_fov.py   ✅ set-now / keep-applied / already-applied / clamping
     features/test_esp.py        ✅ box geometry, behind/right, each style + combos, thickness, target, extras, health bar, snaplines,
                                    FFA vs team mode, draw order, FOV circle (incl. edge matches projection)
   src/actrainer/
     __init__.py                 ✅ package marker, __version__
     __main__.py                 ✅ lets `python -m actrainer` call main.main()
-    main.py                     ✅ entry point: logging, DPI awareness, QApplication, load profile, wire signals/session/controller/menu/overlay, quit
-    config.py                   ✅ non-offset constants: paths, logs, controller timing, menu size, sanity limits, values/weapons + display names, ranges, caps
+    main.py                     ✅ entry point: console logging + excepthook, DPI awareness, QApplication, single-instance lock, file
+                                   logging, load profile (+ warnings dialog), wire signals/session/controller/menu/overlay, quit
+    config.py                   ✅ non-offset constants: paths, logs, lock file, controller timing, menu size, sanity limits,
+                                   values/weapons + display names, ranges (incl. GAME_FOV_RANGE), caps
     offsets.py                  ✅ ALL offsets + GAME_VERSION + PLAYER_READ_SIZE: single source of truth
     app/
       __init__.py               ✅ package marker
-      status.py                 ✅ ControllerStatus (pure): attached, pid, base, exe version, offsets_ok, entities, tick rate, focus, player_values
+      status.py                 ✅ ControllerStatus (pure): attached, pid, base, exe version, offsets_ok, entities, tick rate, focus,
+                                   game_fov, player_values
       controller.py             ✅ QTimer tick: keybinds + actions, throttled attach + liveness, GameState read, aimbot (enabled+key+game focused)
-                                   -> write angles, player values, ESP -> OverlayFrame (visible while game or menu focused), notices, status
+                                   -> write angles, player values, game FOV (set/keep, restored on panic/quit), ESP -> OverlayFrame
+                                   (visible while game or menu focused), notices, status; precise timer
     settings/
       __init__.py               ✅ package marker
-      models.py                 ✅ Settings + sections, enums, ranged() field metadata, field_range, replace_with (pure)
+      models.py                 ✅ Settings + sections (general/aimbot/esp/player/view/keybinds), enums, ranged() metadata, field_range, replace_with
       store.py                  ✅ to_dict/from_dict (forgiving, clamping, migrations) + ProfileStore (files, read-only default, last profile, startup)
       signals.py                ✅ AppSignals hub: settings_changed, refresh_requested, bind_capture_changed, set_value_requested,
-                                   menu_toggle_requested, quit_requested, status_changed, notice, overlay_frame
+                                   game_fov_set_requested, menu_toggle_requested, quit_requested, status_changed, notice, overlay_frame
     memory/
       __init__.py               ✅ package marker (only package allowed to import pymem)
       process.py                ✅ GameProcess: attach/detach/is_alive, module base, typed u32/i32/f32 read/write; AttachError/MemoryAccessError
@@ -155,7 +162,7 @@ assault cube project/
       local_player.py           ✅ read local player, write_view_angles (one 8-byte yaw+pitch write), editable field ids -> offsets
                                    (VALUE_FIELD_OFFSETS, mag_field/reserve_field), snapshot_value, write_player_value
       entities.py               ✅ read_player_count / read_entity_pointers (one read) / read_entities -> list[PlayerSnapshot]
-      view.py                   ✅ read_view_matrix (16 floats in place), read_fov, horizontal_fov_from_matrix, is_sane_matrix + game FOV
+      view.py                   ✅ read_view_matrix (16 floats in place), read_fov, write_fov, horizontal_fov_from_matrix, is_sane_matrix
       state.py                  ✅ read_game_state(): local player + live bots + view matrix + FOV (None outside a match)
     maths/
       __init__.py               ✅ package marker
@@ -169,10 +176,11 @@ assault cube project/
       aimbot.py                 ✅ aim_point, find_candidates (filters), select_target (priority), compute_aim (smoothed angles + target)
       esp.py                    ✅ screen_box, styles (box/corner/head circle/skeleton), extras, team mode, FOV circle -> primitives (pure)
       player_values.py          ✅ ValueWrite, target_writes (clamped), frozen_ids, plan_writes (requested + frozen, only changed, none while dead), describe
+      game_fov.py               ✅ target_fov (clamped), plan_fov_write (set-now / keep-applied, only when different)
     input/
       __init__.py               ✅ package marker
       keys.py                   ✅ VK <-> names, BINDABLE_VKS, mouse buttons
-      actions.py                ✅ BindMode, Bind, ActionDef, ACTIONS registry, default_binds, set_/freeze_ action ids
+      actions.py                ✅ BindMode, Bind, ActionDef, ACTIONS registry (incl. View: set/keep game FOV), default_binds, set_/freeze_ ids
       keybinds.py               ✅ KeybindEngine (HOLD/TOGGLE/PRESS, suspended, reset_toggles), ActionStates, find_conflicts
     ui/
       __init__.py               ✅ package marker
@@ -182,14 +190,16 @@ assault cube project/
       binder.py                 ✅ SettingBinder (checkbox/slider/combo/colour <-> settings field), KeybindBinder (key button + mode combo), helpers
       layout.py                 ✅ group(), row(), labelled(), hint(), scrollable()
       profile_session.py        ✅ ProfileSession: current profile, dirty flag, load/save/save as/rename/delete/reset
-      menu_window.py            ✅ header (title, status pill, Quit) + 5 tabs; show/hide/foreground/placement; close -> quit/hide prompt
+      menu_window.py            ✅ header (title, status pill, Quit) + 5 tabs (Keybinds ⚠ badge on conflicts); show/hide/foreground/placement;
+                                   close -> quit/hide prompt
       tabs/
         __init__.py             ✅ package marker
         aimbot_tab.py           ✅ enable + key/mode, target, priority, max distance, team check, FOV + circle, smoothing
         esp_tab.py              ✅ enable + toggle key, team mode + enemies only, styles, thickness, colours, extras, snapline origin
-        player_tab.py           ✅ stats + per-weapon mag/reserve: target, live "Now", Set now, key, Freeze; notice line
+        player_tab.py           ✅ Game FOV (slider, Now, Set now, key, Keep applied); stats + per-weapon mag/reserve: target, live "Now",
+                                   Set now, key, Freeze; notice line
         keybinds_tab.py         ✅ every action by category (from registry), mode, conflict highlight + banner
-        settings_tab.py         ✅ profiles, tick rate/overlay FPS, menu hotkey, reset, status panel
+        settings_tab.py         ✅ profiles, tick rate/overlay FPS, menu hotkey, reset, status panel (game, process, offsets, entities, view, tick)
       widgets/
         __init__.py             ✅ package marker
         keybind_button.py       ✅ "press a key to bind" button (polls key states, waits for release, Esc clears, 6 s timeout)
@@ -197,12 +207,12 @@ assault cube project/
         labelled_slider.py      ✅ slider with label and live value (float via decimal scaling)
     overlay/
       __init__.py               ✅ package marker
-      window.py                 ✅ OverlayWindow: frameless/topmost/translucent/click-through, follows OverlayFrame rect, repaint at overlay_fps
+      window.py                 ✅ OverlayWindow: frameless/topmost/translucent/click-through, follows OverlayFrame rect, repaint at overlay_fps (precise timer)
       painter.py                ✅ paint(QPainter, primitives): antialiased shapes, shadowed text, cached colours
     winapi/
       __init__.py               ✅ package marker (only package allowed to make ctypes Win32 calls)
       win32.py                  ✅ key state, set_dpi_aware, find_main_window, client/window rects, is_minimized, force_foreground,
-                                   make_click_through (WS_EX_LAYERED|TRANSPARENT|TOOLWINDOW|NOACTIVATE), process image path, file version: find window, client rect, foreground, DPI, key states, ex-styles, file version
+                                   make_click_through (WS_EX_LAYERED|TRANSPARENT|TOOLWINDOW|NOACTIVATE), process image path, file version
 ```
 
 ---
@@ -228,6 +238,7 @@ assault cube project/
             ▼                                ▼
 memory/process ─► game/(local_player, entities, view, state) ─► GameState ─► features/aimbot ──► write angles (via game/local_player)
                                                                     │──────► features/player_values ► write values (via game/local_player)
+                                                                    │──────► features/game_fov ──────► write FOV (via game/view)
                                                                     └──────► features/esp ─► [primitives] ─► overlay/painter
 input/keybinds (polls winapi key states) ─► action states ─► controller enables/disables features
 ```
@@ -240,16 +251,18 @@ A `QTimer` fires at `settings.general.tick_rate_hz` (default 60 Hz). Each tick:
 3. **Read GameState** with `game/state.read_game_state()` (local player, entities, view matrix, FOV).
 4. **Aimbot**: only if `aimbot.enabled` AND the `aimbot` bind is active (HOLD held / TOGGLE on) AND the **game window is
    focused** (holding RMB over the menu never aims). `features/aimbot.compute_aim` picks a target and returns smoothed angles,
-   then the controller writes them with `write_view_angles`. `controller.aim_target_address` remembers the target (for an ESP highlight later).
+   then the controller writes them with `write_view_angles`. `controller.aim_target_address` remembers the target (ESP draws it thicker).
 5. **Player values**: "Set now" (button or hotkey) emits `set_value_requested(id)`, and the controller queues it. Each tick
    `features/player_values.plan_writes(local, settings.player, queued)` returns writes for queued + frozen values, only for fields
    that differ and never while dead. The controller writes them (`write_player_value`) and emits a `notice`. Queued requests that
    can't run (not attached / not in a match) are dropped with a notice.
+   **Game FOV**: `features/game_fov.plan_fov_write(state.fov, settings.view, requested)` → `write_fov`. The FOV before our first
+   write is remembered and restored on panic and on quit.
 6. **ESP / overlay**: `features/esp.build_esp(state, esp, aimbot, w, h, aim_target)` returns primitives (players + FOV circle).
    The controller wraps them with the game's client rect in an `OverlayFrame` and emits `overlay_frame`. The frame is visible
    only when there's something to draw AND the game or one of our windows (`QApplication.activeWindow()`) is focused. "Hidden"
    is emitted once, not every tick. `OverlayWindow` follows the rect and repaints at `overlay_fps` (independent of tick rate).
-7. **Status**: emit attached/entity count/tick rate to the menu (throttled).
+7. **Status**: emit `ControllerStatus` (attached, entities, tick rate, focus, game FOV, live player values) to the menu at 2 Hz.
 
 Keep each tick fast. **On a read error: log it, skip the tick, never crash.** If the process is gone, detach and go back to step 2.
 
@@ -313,8 +326,8 @@ entities and invalid data without crashing.
 
 - **`settings/models.py`** (pure): root `Settings` = `GeneralSettings` (tick rate, overlay FPS, `menu_pos`),
   `AimbotSettings`, `EspSettings`, `PlayerSettings` (`values: {stat -> ValueSetting(target, freeze)}` for
-  `config.STAT_VALUES`, `ammo: {weapon -> AmmoSetting(mag, reserve, freeze)}` for `config.WEAPONS`) and
-  `KeybindSettings` (`binds: {action_id -> Bind(key, mode)}`, defaults from the action registry).
+  `config.STAT_VALUES`, `ammo: {weapon -> AmmoSetting(mag, reserve, freeze)}` for `config.WEAPONS`),
+  `ViewSettings` (game `fov` + `freeze` = keep applied) and `KeybindSettings` (`binds: {action_id -> Bind(key, mode)}`, defaults from the action registry).
   Enums: `AimTarget`, `TargetPriority`, `SnaplineOrigin`. Colours are `"#RRGGBBAA"` strings, so models stay Qt-free.
 - **Ranges live in field metadata:** `fov_deg: float = ranged(15.0, config.AIM_FOV_RANGE)`. `field_range(cls, name)`
   returns `(min, max)`. The store clamps with it and the UI uses it for slider/spinbox limits, so a range is defined once in
@@ -368,7 +381,8 @@ entities and invalid data without crashing.
   `suspended=True` while the menu captures a bind: edges are tracked but nothing fires, so the captured key doesn't trigger
   afterwards. `reset_toggles()` is used by panic. Fed each tick by `winapi.get_pressed_keys(BINDABLE_VKS)`.
 - **Actions:** `menu_toggle` (INSERT), `panic` (END), `quit` (unbound), `aimbot` (RMB, HOLD or TOGGLE),
-  `aimbot_enable_toggle`, `esp_toggle`, and for every stat/weapon `set_<id>` + `freeze_<id>` (all unbound, PRESS).
+  `aimbot_enable_toggle`, `esp_toggle`, `set_game_fov`, `freeze_game_fov`, and for every stat/weapon `set_<id>` +
+  `freeze_<id>` (all unbound, PRESS).
   Everything except `aimbot` is PRESS-only.
 - **Registering a new action:**
   1. Add an `ActionDef` in `actions._build_actions()` (use a module constant for its id if the controller references it).
@@ -411,7 +425,9 @@ entities and invalid data without crashing.
 - **Menu position** is stored in `general.menu_pos` on hide. It doesn't mark the profile dirty, is saved with the next Save,
   and is kept (not overwritten) when another profile is loaded. Off-screen positions fall back to centring.
 - **Close (X) button:** asks "Quit trainer / Hide menu / Cancel". A **Quit** button in the menu exits cleanly
-  (unfreezes values, closes overlay). There's no default quit key.
+  (unfreezes values, restores the game FOV, closes overlay). There's no default quit key.
+- **Single instance:** a second copy shows "already running" and exits (`QLockFile` in the temp dir; a crashed
+  instance's stale lock is detected by PID).
 - **Overlay stays visible** while the game **or** the menu has focus. It's hidden when anything else is foreground or the game isn't running.
 
 ---
@@ -478,6 +494,13 @@ entities and invalid data without crashing.
   `url()` paths need forward slashes (`Path.as_posix()`).
 - **`QPushButton#primary` overrides the disabled look**, so it needs its own `:disabled` rule.
 - **`app.setQuitOnLastWindowClosed(False)`** is required, or hiding the menu would quit the app.
+- **PyQt5 aborts on unhandled exceptions in Qt callbacks** (slots, paintEvent...) since 5.5. `main.log_unhandled` is installed
+  as `sys.excepthook`, so they're logged with a traceback instead. The controller tick also catches everything itself.
+- **Open the log file only after the single-instance lock:** otherwise a second copy (about to exit) truncates the running
+  trainer's `logs/actrainer.log` (found and fixed in Phase 10).
+- **The game never clamps `VIEW_FOV`:** any written value renders (30..170 tested). The console's `/fov` limits don't apply, so
+  `config.GAME_FOV_RANGE` (30..150) is the only guard. Writing changes the matrix FOV immediately.
+- **QTimer default is coarse (~15.6 ms on Windows):** use `Qt.PreciseTimer` for the tick and overlay timers.
 - **pymem log noise:** pymem installs its own DEBUG handler on import. `memory/process.py` sets the `pymem` logger to WARNING.
 - **Default player name** in AC is `unarmed`. Seeing that name means the read works.
 - **Team check in free-for-all modes (confirmed Phase 2):** in FFA deathmatch, bots still have team 0/1 and some share
@@ -508,6 +531,7 @@ entities and invalid data without crashing.
 - Handle errors at the controller boundary: log, skip the tick, recover.
 - Ask the user when something is unclear.
 - Keep commits small and focused. Commit only after the user approves a phase.
+- After any game update, re-run the tools in order (phase1 → phase2 → phase8) before trusting the offsets.
 
 **Don't**
 - Don't add packages without asking.
@@ -525,19 +549,25 @@ entities and invalid data without crashing.
 
 - [x] **Step 0:** CLAUDE.md, README, requirements, .gitignore, plan. *(approved 2026-10-03)*
 - [x] Phase 1: Memory: attach, read local player, live debug print *(done 2026-10-03: local player pointer corrected to 0x18AC00; dead flag 0x318 verified)*
-- [x] Phase 2: Entities: print every bot *(built + verified against running game: 7 bots read; awaiting user test)*
-- [x] Phase 3: Maths: angles, projection, skeleton + tests *(107 tests passing; awaiting in-game angle check)*
-- [x] Phase 4: Settings + keybinds core + tests *(176 tests passing; awaiting user check of phase4_keybinds)*
+- [x] Phase 2: Entities: print every bot *(done 2026-10-03; verified in-game)*
+- [x] Phase 3: Maths: angles, projection, skeleton + tests *(done 2026-10-03; verified in-game)*
+- [x] Phase 4: Settings + keybinds core + tests *(done 2026-10-03; verified with real keys)*
 - [x] Phase 5: Menu shell (all tabs wired to settings, profiles, menu hotkey) *(done 2026-10-03; 205 tests; menu focus/mouse release verified in-game)*
 - [x] Phase 6: Controller + aimbot *(done 2026-10-03; 229 tests; verified in-game)*
 - [x] Phase 7: Player values (set-now, freeze, keybinds) *(done 2026-10-03; 244 tests; verified in-game)*
 - [x] Phase 8: View matrix debug script *(done 2026-10-03; 257 tests; verified in-game)*
 - [x] Phase 9: Overlay + ESP + FOV circle *(done 2026-10-03; 284 tests; verified in-game)*
-- [ ] Phase 10: Polish (panic, reattach, status, conflicts, error handling, docs)
-  - [ ] **User request (2026-10-03): game FOV slider**: write the game's own FOV (`VIEW_FOV`, what `/fov` changes) with
-    set-now + keep-applied. Verify in-game which range the game accepts before choosing limits.
+- [x] Phase 10: Polish *(done 2026-10-03; 296 tests; verified in-game)*
+  - [x] Game FOV slider (user request): set-now / keep-applied / key, range 30..150 (game doesn't clamp; verified), restored on panic/quit
+  - [x] Panic also stops keep-applied FOV and restores the original FOV
+  - [x] Crash safety (excepthook), single-instance lock, log file opened after the lock
+  - [x] Precise timers, Keybinds ⚠ tab badge, startup profile-warnings dialog, View row in the status panel
+  - [x] README usage guide, final CLAUDE.md pass, .gitattributes
+  - Auto-reattach, status panel and conflict warnings were already done in Phases 5–9 (verified by the user).
 
-**Next:** Phase 10 (polish + game FOV slider).
+**Next:** planned build complete. Possible future ideas (only if the user
+asks): target lock while holding the aim key, visibility check (needs a raycast or a visibility offset), game-mode offset
+for automatic team check, per-profile hotkey to switch profiles.
 
 ---
 
@@ -616,6 +646,12 @@ entities and invalid data without crashing.
   overlay visibility logic is unit-testable. The overlay repaints on its own timer at `overlay_fps`.
 - **2026-10-03:** ESP box = projected head-top (eye + 0.8 u) to feet, width = 0.45 x height. The aimbot's current target is
   drawn thicker. Furthest players draw first.
+- **2026-10-03:** Game FOV (user request) is a separate `view` settings section + `features/game_fov.py`, not a player
+  "value": it's a float at a static address, not a player-struct int. Range 30..150 chosen after verifying the game renders any
+  value without clamping. Panic/quit restore the original FOV (panic = everything back to normal). Group placed at the top
+  of the Player tab so it's visible without scrolling.
+- **2026-10-03:** Phase 10 hardening: `sys.excepthook` logger (PyQt5 would otherwise abort), `QLockFile` single instance,
+  file logging only after the lock, `Qt.PreciseTimer`.
 - **2026-10-03:** Shared test fakes live in `tests/helpers/` (pytest `pythonpath = ["tests"]`). `FakeProcess` is
   duck-typed (read_bytes / read_u32 / read_i32 / module_base), so game-layer code is tested without the game.
 - **2026-10-03:** src layout (`src/actrainer`) + `pyproject.toml` editable install, so tools, tests and

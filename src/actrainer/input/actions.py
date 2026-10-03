@@ -51,6 +51,7 @@ CATEGORY_GENERAL = "General"
 CATEGORY_AIMBOT = "Aimbot"
 CATEGORY_ESP = "ESP"
 CATEGORY_PLAYER = "Player"
+CATEGORY_VIEW = "View"
 
 # Well-known action ids used by the controller.
 MENU_TOGGLE = "menu_toggle"
@@ -59,6 +60,8 @@ QUIT = "quit"
 AIMBOT_ACTIVATE = "aimbot"
 AIMBOT_ENABLE_TOGGLE = "aimbot_enable_toggle"
 ESP_TOGGLE = "esp_toggle"
+SET_GAME_FOV = "set_game_fov"
+FREEZE_GAME_FOV = "freeze_game_fov"
 
 
 def set_action_id(value_id: str) -> str:
@@ -91,6 +94,8 @@ def _build_actions() -> tuple[ActionDef, ...]:
                                  PRESS_ONLY, BindMode.PRESS))
         actions.append(ActionDef(freeze_action_id(value_id), f"Freeze {label} on/off", CATEGORY_PLAYER,
                                  PRESS_ONLY, BindMode.PRESS))
+    actions.append(ActionDef(SET_GAME_FOV, "Set game FOV now", CATEGORY_VIEW, PRESS_ONLY, BindMode.PRESS))
+    actions.append(ActionDef(FREEZE_GAME_FOV, "Keep game FOV applied on/off", CATEGORY_VIEW, PRESS_ONLY, BindMode.PRESS))
     return tuple(actions)
 
 

@@ -97,6 +97,14 @@ class EspSettings:
 
 
 @dataclass(slots=True)
+class ViewSettings:
+    """The game's own field of view (what /fov changes), written to memory by the controller."""
+
+    fov: float = ranged(90.0, config.GAME_FOV_RANGE)
+    freeze: bool = False  # "keep applied": re-write every tick if the game changes it
+
+
+@dataclass(slots=True)
 class ValueSetting:
     """A single editable int (health, armour, grenades, akimbo ammo)."""
 
@@ -150,6 +158,7 @@ class Settings:
     aimbot: AimbotSettings = field(default_factory=AimbotSettings)
     esp: EspSettings = field(default_factory=EspSettings)
     player: PlayerSettings = field(default_factory=PlayerSettings)
+    view: ViewSettings = field(default_factory=ViewSettings)
     keybinds: KeybindSettings = field(default_factory=KeybindSettings)
 
     def replace_with(self, other: Settings) -> None:

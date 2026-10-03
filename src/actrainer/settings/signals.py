@@ -22,6 +22,8 @@ class AppSignals(QObject):
     bind_capture_changed = pyqtSignal(bool)
     # Player tab "Set now" / set hotkey (value id: a stat or weapon). The controller writes it on the next tick.
     set_value_requested = pyqtSignal(str)
+    # Player tab "Set game FOV now" / hotkey. The controller writes it on the next tick.
+    game_fov_set_requested = pyqtSignal()
     # Controller -> menu.
     menu_toggle_requested = pyqtSignal()
     quit_requested = pyqtSignal()

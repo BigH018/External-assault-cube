@@ -75,7 +75,7 @@ class SettingsTab(QWidget):
         s.addLayout(form)
         self.status_labels: dict[str, QLabel] = {}
         for key, title in (("game", "Game"), ("process", "Process"), ("offsets", "Offsets"),
-                           ("entities", "Entities"), ("tick", "Tick rate")):
+                           ("entities", "Entities"), ("view", "View"), ("tick", "Tick rate")):
             label = QLabel("–")
             label.setObjectName("status")
             label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -188,6 +188,11 @@ class SettingsTab(QWidget):
             put("process", "–", "warn")
             put("offsets", f"v{offsets.GAME_VERSION}", "warn")
         put("entities", str(status.entity_count), "ok" if status.entity_count else "warn")
+        if status.attached and status.game_fov:
+            focus = "game focused" if status.game_focused else "game not focused"
+            put("view", f"FOV {status.game_fov:g}° · {focus}", "ok" if status.game_focused else "warn")
+        else:
+            put("view", "–", "warn")
         put("tick", f"{status.tick_rate:.1f} Hz", "ok" if status.tick_rate else "warn")
 
     def load_from_settings(self) -> None:

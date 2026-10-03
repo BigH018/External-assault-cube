@@ -4,6 +4,35 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — Phase 10: Polish + game FOV slider
+
+**Built**
+- **Game FOV slider (user request):** `ViewSettings` (fov + keep applied), `features/game_fov.py`, `game/view.write_fov`,
+  controller set-now / keep-applied with notices, original FOV restored on panic and quit, actions "Set game FOV now" /
+  "Keep game FOV applied on/off", Game FOV group at the top of the Player tab with a live "Now" readout, FOV in the status panel.
+- **Hardening:** `sys.excepthook` logs unhandled exceptions instead of PyQt5 aborting; single-instance `QLockFile`;
+  `Qt.PreciseTimer` for tick + overlay.
+- **UI:** ⚠ badge on the Keybinds tab when binds conflict; a dialog at startup if the profile loaded with warnings;
+  View row (FOV + game focus) in the status panel.
+- **Docs:** README usage guide, CLAUDE.md final pass (stale status lines, tree, data flow, gotchas), `.gitattributes`.
+- Tests: game FOV feature + controller (set/keep/restore on panic and shutdown/hotkey), menu badge + FOV readout,
+  single-instance lock, exception hook. **296 tests total, all passing.**
+
+**Verified against the running game**
+- Writing `VIEW_FOV` changes rendering immediately: 110 / 60 / 150 / 30 / 170 were all accepted unclamped (matrix hfov matched
+  each time), then the original 90 was restored. Range set to 30..150.
+- Second instance refused with "already running".
+
+**Bug found and fixed**
+- The second instance opened `logs/actrainer.log` (mode "w") BEFORE the lock check and wiped the running trainer's log.
+  File logging now starts only after the lock is acquired.
+- A quoting slip in an automated edit put raw newlines inside two string literals in `main.py`. Caught by test collection.
+  Added a `compileall` check over src/tools/tests.
+
+**User tested in-game:** game FOV set/keep/restore, hotkeys, single instance, badge, status. All working.
+
+---
+
 ## 2026-10-03 — Phase 9: Overlay + ESP
 
 **Built**

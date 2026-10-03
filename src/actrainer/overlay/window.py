@@ -38,6 +38,7 @@ class OverlayWindow(QWidget):
         self._styled = False
 
         self._repaint_timer = QTimer(self)
+        self._repaint_timer.setTimerType(Qt.PreciseTimer)
         self._repaint_timer.timeout.connect(self._maybe_repaint)
         self.apply_fps()
 

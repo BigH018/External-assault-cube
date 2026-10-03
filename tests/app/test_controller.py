@@ -10,6 +10,7 @@ from actrainer.game.player import read_player
 from actrainer.input.actions import (
     AIMBOT_ACTIVATE,
     ESP_TOGGLE,
+    FREEZE_GAME_FOV,
     MENU_TOGGLE,
     PANIC,
     QUIT,
@@ -349,3 +350,54 @@ def test_overlay_hidden_when_nothing_to_draw(settings: Settings, signals: AppSig
     controller, frames = make_overlay_controller(settings, signals, game_focused=True, app_focused=False)
     controller.tick()  # ESP and aimbot both off by default
     assert frames == []
+
+
+# --- game FOV (Phase 10) --------------------------------------------------------------------------
+
+def fov_of(proc) -> float:  # noqa: ANN001
+    return proc.read_f32(proc.module_base + offsets.VIEW_FOV)
+
+
+def test_game_fov_set_now_and_notice(settings: Settings, signals: AppSignals) -> None:
+    settings.view.fov = 110.0
+    controller, _, proc, _ = make_attached(settings, signals)
+    notices: list[str] = []
+    signals.notice.connect(notices.append)
+    signals.game_fov_set_requested.emit()
+    controller.tick()
+    assert fov_of(proc) == 110.0 and notices == ["Game FOV set to 110°"]
+    controller.tick()
+    assert controller.status().game_fov == 110.0
+
+
+def test_game_fov_keep_applied_and_panic_restores_original(settings: Settings, signals: AppSignals) -> None:
+    settings.view.fov = 120.0
+    settings.view.freeze = True
+    controller, keys, proc, _ = make_attached(settings, signals)
+    controller.tick()
+    assert fov_of(proc) == 120.0
+    proc.write_f32(proc.module_base + offsets.VIEW_FOV, 80.0)  # the game resets it
+    controller.tick()
+    assert fov_of(proc) == 120.0
+    keys.down = {VK_END}
+    controller.tick()
+    assert fov_of(proc) == 90.0            # original restored
+    assert settings.view.freeze is False
+
+
+def test_game_fov_restored_on_shutdown(settings: Settings, signals: AppSignals) -> None:
+    settings.view.fov = 60.0
+    controller, _, proc, _ = make_attached(settings, signals)
+    signals.game_fov_set_requested.emit()
+    controller.tick()
+    assert fov_of(proc) == 60.0
+    controller.shutdown()
+    assert fov_of(proc) == 90.0
+
+
+def test_freeze_fov_hotkey(settings: Settings, signals: AppSignals) -> None:
+    settings.keybinds.binds[FREEZE_GAME_FOV].key = KEY_F8
+    controller, keys, _, _ = make_attached(settings, signals)
+    keys.down = {KEY_F8}
+    controller.tick()
+    assert settings.view.freeze is True

@@ -58,3 +58,18 @@ def test_status_pill(settings: Settings, signals: AppSignals, session: ProfileSe
     assert "Not attached" in menu.status_pill.text()
     signals.status_changed.emit(ControllerStatus(attached=True, offsets_ok=True, entity_count=7, tick_rate=60))
     assert "7 bots" in menu.status_pill.text()
+
+
+def test_keybinds_tab_badge_on_conflict(settings: Settings, signals: AppSignals, session: ProfileSession) -> None:
+    menu = make(settings, signals, session)
+    index = menu.tabs.indexOf(menu.keybinds_tab)
+    assert menu.tabs.tabText(index) == "Keybinds"
+    settings.keybinds.binds[PANIC].key = settings.keybinds.binds[AIMBOT_ACTIVATE].key
+    signals.settings_changed.emit("keybinds")
+    assert menu.tabs.tabText(index) == "Keybinds ⚠"
+
+
+def test_player_tab_shows_game_fov(settings: Settings, signals: AppSignals, session: ProfileSession) -> None:
+    menu = make(settings, signals, session)
+    signals.status_changed.emit(ControllerStatus(attached=True, offsets_ok=True, game_fov=110.0))
+    assert menu.player_tab.fov_now.text() == "110°"

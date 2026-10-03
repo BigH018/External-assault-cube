@@ -3,7 +3,7 @@
 Profile format (profiles/<name>.json):
     {
       "schema_version": 1,
-      "general":  {...}, "aimbot": {...}, "esp": {...},
+      "general":  {...}, "aimbot": {...}, "esp": {...}, "view": {"fov": 90.0, "freeze": false},
       "player":   {"values": {"health": {"target": 100, "freeze": false}, ...},
                    "ammo":   {"pistol": {"mag": 10, "reserve": 100, "freeze": false}, ...}},
       "keybinds": {"menu_toggle": {"key": "INSERT", "mode": "press"}, ...}
@@ -54,7 +54,7 @@ SCHEMA_KEY = "schema_version"
 # from_version -> function that upgrades a profile dict to from_version + 1.
 MIGRATIONS: dict[int, Callable[[dict[str, Any]], dict[str, Any]]] = {}
 
-_FLAT_SECTIONS = ("general", "aimbot", "esp")
+_FLAT_SECTIONS = ("general", "aimbot", "esp", "view")
 _COLOUR_RE = re.compile(r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$")
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _-]*$")
 # Windows device names can't be used as file names (even with an extension).

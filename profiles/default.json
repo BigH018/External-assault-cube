@@ -35,6 +35,10 @@
     "show_snaplines": false,
     "snapline_origin": "bottom"
   },
+  "view": {
+    "fov": 90.0,
+    "freeze": false
+  },
   "player": {
     "values": {
       "health": {
@@ -189,6 +193,14 @@
       "mode": "press"
     },
     "freeze_assault": {
+      "key": null,
+      "mode": "press"
+    },
+    "set_game_fov": {
+      "key": null,
+      "mode": "press"
+    },
+    "freeze_game_fov": {
       "key": null,
       "mode": "press"
     }
