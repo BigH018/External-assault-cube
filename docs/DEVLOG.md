@@ -4,6 +4,34 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — Phase 9: Overlay + ESP
+
+**Built**
+- `features/primitives.py`: Line / Rect / FilledRect / Circle / Text + `OverlayFrame`.
+- `features/esp.py` (pure): screen box from projected head-top + feet; 2D box, corner box, head circle, skeleton (projected
+  approximate bones); name, health bar (green→red), health number, distance, snaplines (bottom/centre); team mode +
+  enemies only; aim target drawn thicker; far-to-near order; aimbot FOV circle.
+- `overlay/painter.py` + `overlay/window.py`: translucent, topmost, click-through (Qt flags + Win32 `make_click_through`),
+  follows the client rect, repaints at `overlay_fps`.
+- Controller builds an `OverlayFrame` each tick; visible only while the game or our menu is focused and there's something
+  to draw. Main wires overlay + FPS changes.
+- New ESP setting `team_mode`; ESP tab updated; default.json regenerated.
+- Tests: ESP (geometry, styles, extras, teams, FOV circle vs projection), painter pixels, overlay window, controller overlay
+  frames. **284 tests total, all passing.**
+
+**Bugs caught**
+- Two of my new tests assumed screen-right was −y when facing +x. It's +y (right = up × forward; turning right increases
+  yaw). The code was right, the tests were wrong.
+- Offscreen Qt text rendering needs `QT_QPA_FONTDIR` (now set in `tests/conftest.py`).
+
+**Verified**
+- Live screenshot + painted ESP: box frames the visible bot, head circle on its head, FOV circle at the crosshair.
+- App run attached with no errors.
+- User tested in-game: all styles, extras, FOV circle, target highlight, team mode, visibility rules,
+  click-through, panic/toggle. All working.
+
+---
+
 ## 2026-10-03 — Phase 8: View matrix
 
 **Built**

@@ -102,7 +102,7 @@ assault cube project/
     phase4_keybinds.py          ✅ live keybind engine with real keys (HOLD/TOGGLE/PRESS incl. mouse buttons)
     phase8_view_matrix.py       ✅ read-only: centre check (own view dir -> screen centre), matrix-derived hfov, nearest bot head/feet on screen
   tests/
-    conftest.py                 ✅ shared fixtures: offscreen QApplication, settings, signals, tmp ProfileStore, ProfileSession
+    conftest.py                 ✅ shared fixtures: offscreen QApplication (+ Windows fonts), settings, signals, tmp ProfileStore, ProfileSession
     helpers/__init__.py         ✅ makes shared helpers importable (pytest pythonpath = tests)
     helpers/gl_matrix.py        ✅ pure-Python GL matrix maths + ac_view_projection() that mimics AC's transplayer()
     helpers/fake_game.py        ✅ make_player_buffer(), FakeProcess (writable memory + attach/alive, records writes), make_fake_game() (+ matrix/fov)
@@ -120,29 +120,31 @@ assault cube project/
     input/test_keybinds.py      ✅ hold/toggle/press, suspension, reset, conflicts, action registry
     ui/test_binder.py           ✅ controls write settings/emit, reload after replace_with, keybind binder
     ui/test_profile_session.py  ✅ dirty flag, save/save as/load/rename/reset on the shared Settings
+    ui/test_overlay.py          ✅ painter renders each primitive to the right pixels; window follows frames; repaint rate
     ui/test_menu_window.py      ✅ builds 5 tabs, title marker, cross-tab bind sync, conflict banner, refresh, status pill
     app/test_controller.py      ✅ hotkeys, capture suspension, attach throttling, status, tick rate; aimbot conditions + toggle;
-                                   set-now once + notice, freeze re-applies (no redundant writes), weapons, dead/not-in-match, panic, live values
+                                   player values; overlay frames (game/menu focus, hide once, nothing to draw)
     features/test_aimbot.py     ✅ aim point, FOV/dead/team/distance filters, priorities + tie-break, snap/smooth, body lower, dead local, 0/360
     features/test_player_values.py ✅ field map, clamped targets, only-changed writes, freezes, no dup, dead = no writes, describe
-    features/test_esp.py        🔲 [9] draw-primitive generation
+    features/test_esp.py        ✅ box geometry, behind/right, each style + combos, thickness, target, extras, health bar, snaplines,
+                                   FFA vs team mode, draw order, FOV circle (incl. edge matches projection)
   src/actrainer/
     __init__.py                 ✅ package marker, __version__
     __main__.py                 ✅ lets `python -m actrainer` call main.main()
-    main.py                     ✅ entry point: logging, DPI awareness, QApplication, load profile, wire signals/session/controller/menu, quit
+    main.py                     ✅ entry point: logging, DPI awareness, QApplication, load profile, wire signals/session/controller/menu/overlay, quit
     config.py                   ✅ non-offset constants: paths, logs, controller timing, menu size, sanity limits, values/weapons + display names, ranges, caps
     offsets.py                  ✅ ALL offsets + GAME_VERSION + PLAYER_READ_SIZE: single source of truth
     app/
       __init__.py               ✅ package marker
       status.py                 ✅ ControllerStatus (pure): attached, pid, base, exe version, offsets_ok, entities, tick rate, focus, player_values
       controller.py             ✅ QTimer tick: keybinds + actions, throttled attach + liveness, GameState read, aimbot (enabled+key+game focused)
-                                   -> write angles, player values (pending set-now + freezes), notices, status (+ live values); 🔲 [9] ESP/overlay
+                                   -> write angles, player values, ESP -> OverlayFrame (visible while game or menu focused), notices, status
     settings/
       __init__.py               ✅ package marker
       models.py                 ✅ Settings + sections, enums, ranged() field metadata, field_range, replace_with (pure)
       store.py                  ✅ to_dict/from_dict (forgiving, clamping, migrations) + ProfileStore (files, read-only default, last profile, startup)
       signals.py                ✅ AppSignals hub: settings_changed, refresh_requested, bind_capture_changed, set_value_requested,
-                                   menu_toggle_requested, quit_requested, status_changed, notice
+                                   menu_toggle_requested, quit_requested, status_changed, notice, overlay_frame
     memory/
       __init__.py               ✅ package marker (only package allowed to import pymem)
       process.py                ✅ GameProcess: attach/detach/is_alive, module base, typed u32/i32/f32 read/write; AttachError/MemoryAccessError
@@ -163,9 +165,9 @@ assault cube project/
       skeleton.py               ✅ JOINTS proportions, BONES, facing_vectors, build_skeleton -> Skeleton
     features/
       __init__.py               ✅ package marker
-      primitives.py             🔲 [9] pure draw-primitive dataclasses (Line, Rect, Circle, Text)
+      primitives.py             ✅ Line, Rect, FilledRect, Circle, Text (+TextAlign), OverlayFrame (pure)
       aimbot.py                 ✅ aim_point, find_candidates (filters), select_target (priority), compute_aim (smoothed angles + target)
-      esp.py                    🔲 [9] settings + GameState -> list of draw primitives (no Qt)
+      esp.py                    ✅ screen_box, styles (box/corner/head circle/skeleton), extras, team mode, FOV circle -> primitives (pure)
       player_values.py          ✅ ValueWrite, target_writes (clamped), frozen_ids, plan_writes (requested + frozen, only changed, none while dead), describe
     input/
       __init__.py               ✅ package marker
@@ -184,7 +186,7 @@ assault cube project/
       tabs/
         __init__.py             ✅ package marker
         aimbot_tab.py           ✅ enable + key/mode, target, priority, max distance, team check, FOV + circle, smoothing
-        esp_tab.py              ✅ enable + toggle key, enemies only, styles, thickness, colours, extras, snapline origin
+        esp_tab.py              ✅ enable + toggle key, team mode + enemies only, styles, thickness, colours, extras, snapline origin
         player_tab.py           ✅ stats + per-weapon mag/reserve: target, live "Now", Set now, key, Freeze; notice line
         keybinds_tab.py         ✅ every action by category (from registry), mode, conflict highlight + banner
         settings_tab.py         ✅ profiles, tick rate/overlay FPS, menu hotkey, reset, status panel
@@ -194,12 +196,13 @@ assault cube project/
         colour_button.py        ✅ swatch button + QColorDialog with alpha; #RRGGBBAA <-> QColor
         labelled_slider.py      ✅ slider with label and live value (float via decimal scaling)
     overlay/
-      window.py                 🔲 [9] transparent click-through window that tracks the game client rect
-      painter.py                🔲 [9] draws a list of primitives with QPainter
+      __init__.py               ✅ package marker
+      window.py                 ✅ OverlayWindow: frameless/topmost/translucent/click-through, follows OverlayFrame rect, repaint at overlay_fps
+      painter.py                ✅ paint(QPainter, primitives): antialiased shapes, shadowed text, cached colours
     winapi/
       __init__.py               ✅ package marker (only package allowed to make ctypes Win32 calls)
-      win32.py                  ✅ key state, set_dpi_aware, find_main_window, client/window rects, force_foreground,
-                                   process image path, file version; 🔲 [9] overlay ex-styles: find window, client rect, foreground, DPI, key states, ex-styles, file version
+      win32.py                  ✅ key state, set_dpi_aware, find_main_window, client/window rects, is_minimized, force_foreground,
+                                   make_click_through (WS_EX_LAYERED|TRANSPARENT|TOOLWINDOW|NOACTIVATE), process image path, file version: find window, client rect, foreground, DPI, key states, ex-styles, file version
 ```
 
 ---
@@ -242,7 +245,10 @@ A `QTimer` fires at `settings.general.tick_rate_hz` (default 60 Hz). Each tick:
    `features/player_values.plan_writes(local, settings.player, queued)` returns writes for queued + frozen values, only for fields
    that differ and never while dead. The controller writes them (`write_player_value`) and emits a `notice`. Queued requests that
    can't run (not attached / not in a match) are dropped with a notice.
-6. **ESP**: `features/esp` returns draw primitives → `overlay.set_primitives(...)` → `update()` (repaint).
+6. **ESP / overlay**: `features/esp.build_esp(state, esp, aimbot, w, h, aim_target)` returns primitives (players + FOV circle).
+   The controller wraps them with the game's client rect in an `OverlayFrame` and emits `overlay_frame`. The frame is visible
+   only when there's something to draw AND the game or one of our windows (`QApplication.activeWindow()`) is focused. "Hidden"
+   is emitted once, not every tick. `OverlayWindow` follows the rect and repaints at `overlay_fps` (independent of tick rate).
 7. **Status**: emit attached/entity count/tick rate to the menu (throttled).
 
 Keep each tick fast. **On a read error: log it, skip the tick, never crash.** If the process is gone, detach and go back to step 2.
@@ -421,6 +427,10 @@ entities and invalid data without crashing.
   **Smooth along the shortest yaw direction** (no spinning the long way round past 0/360).
 - **View matrix is OpenGL column-major.** `clip.x = m[0]*x + m[4]*y + m[8]*z + m[12]` (etc.).
   Reject points behind the camera (`w < 0.001`). NDC → pixels with **y flipped**.
+- **Overlay verified against a live screenshot (Phase 9):** ESP painted over a screen grab of the client area lined up with the
+  visible bot (box around the body, head circle on the head). Re-check with the scratch approach: grab the screen, paint
+  `build_esp(...)` on it, no windows needed.
+- **FFA team values:** ESP "Team mode" (off by default) decides whether team values matter. Off = every bot is an enemy colour.
 - **Overlay:** frameless, translucent, always-on-top, click-through (`WA_TransparentForMouseEvents` plus
   `WS_EX_LAYERED | WS_EX_TRANSPARENT`), sized to the game's **client** area (not the window frame).
   The process **must be DPI-aware** (set before `QApplication` is created) or drawings will be offset on scaled displays.
@@ -522,12 +532,12 @@ entities and invalid data without crashing.
 - [x] Phase 6: Controller + aimbot *(done 2026-10-03; 229 tests; verified in-game)*
 - [x] Phase 7: Player values (set-now, freeze, keybinds) *(done 2026-10-03; 244 tests; verified in-game)*
 - [x] Phase 8: View matrix debug script *(done 2026-10-03; 257 tests; verified in-game)*
-- [ ] Phase 9: Overlay + ESP + FOV circle
+- [x] Phase 9: Overlay + ESP + FOV circle *(done 2026-10-03; 284 tests; verified in-game)*
 - [ ] Phase 10: Polish (panic, reattach, status, conflicts, error handling, docs)
   - [ ] **User request (2026-10-03): game FOV slider**: write the game's own FOV (`VIEW_FOV`, what `/fov` changes) with
     set-now + keep-applied. Verify in-game which range the game accepts before choosing limits.
 
-**Next:** Phase 9 (overlay + ESP).
+**Next:** Phase 10 (polish + game FOV slider).
 
 ---
 
@@ -600,6 +610,12 @@ entities and invalid data without crashing.
 - **2026-10-03:** Phase 8 verification is mostly automatic: projecting a point along our own view direction must hit the exact
   screen centre. That checks the matrix against the angle convention with no human judgement needed. The game FOV is horizontal
   (derived from the matrix). `GameState` now carries `view_matrix` and `fov`.
+- **2026-10-03:** Added ESP `team_mode` (default off) instead of always colouring by team value. FFA bots carry team values
+  (Phase 2), which would wrongly mark some as teammates. New field with a default, so no schema bump; default.json regenerated.
+- **2026-10-03:** Controller -> overlay via an `OverlayFrame` signal (pure data). The controller never touches the window, and
+  overlay visibility logic is unit-testable. The overlay repaints on its own timer at `overlay_fps`.
+- **2026-10-03:** ESP box = projected head-top (eye + 0.8 u) to feet, width = 0.45 x height. The aimbot's current target is
+  drawn thicker. Furthest players draw first.
 - **2026-10-03:** Shared test fakes live in `tests/helpers/` (pytest `pythonpath = ["tests"]`). `FakeProcess` is
   duck-typed (read_bytes / read_u32 / read_i32 / module_base), so game-layer code is tested without the game.
 - **2026-10-03:** src layout (`src/actrainer`) + `pyproject.toml` editable install, so tools, tests and

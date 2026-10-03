@@ -6,7 +6,8 @@ A QTimer fires at settings.general.tick_rate_hz. Each tick:
     3. read the game state (local player + live bots)
     4. aimbot -> write view angles (only while enabled, key active and the GAME window is focused)
     5. player values: pending set-now requests + freezes -> int writes (skipped while dead)
-    6. ESP -> draw primitives -> overlay repaint     [Phase 9]
+    6. ESP + FOV circle -> OverlayFrame (client rect + primitives) -> overlay (visible only while the
+       game or our own menu is focused)
     7. emit status to the menu (throttled)
 Read errors are logged and the tick is skipped. Nothing here may crash the app.
 """
@@ -18,10 +19,12 @@ import time
 from collections.abc import Callable
 
 from PyQt5.QtCore import QObject, QTimer
+from PyQt5.QtWidgets import QApplication
 
 from actrainer import config
 from actrainer.app.status import ControllerStatus
-from actrainer.features import aimbot, player_values
+from actrainer.features import aimbot, esp, player_values
+from actrainer.features.primitives import OverlayFrame
 from actrainer.game.local_player import VALUE_FIELD_OFFSETS, snapshot_value, write_player_value, write_view_angles
 from actrainer.game.state import read_game_state
 from actrainer.game.structs import GameState
@@ -48,13 +51,28 @@ def default_focus_check(game_hwnd: int | None) -> bool:
     return game_hwnd is not None and win32.get_foreground_window() == game_hwnd
 
 
+def default_app_focus_check() -> bool:
+    """True if one of OUR windows (the menu or a dialog) is the active foreground window."""
+    return QApplication.activeWindow() is not None
+
+
+def default_client_rect(game_hwnd: int | None) -> tuple[int, int, int, int] | None:
+    """The game's client area on screen, or None if there's no usable (non-minimised) window."""
+    if game_hwnd is None or win32.is_minimized(game_hwnd):
+        return None
+    rect = win32.get_client_rect_on_screen(game_hwnd)
+    return rect if rect and rect[2] > 0 and rect[3] > 0 else None
+
+
 class Controller(QObject):
     """Owns the game connection and the tick timer. The UI never calls memory code; this does."""
 
     def __init__(self, settings: Settings, signals: AppSignals, process: GameProcess | None = None,
                  key_source: Callable[[], set[int]] = default_key_source,
                  clock: Callable[[], float] = time.perf_counter,
-                 focus_check: Callable[[int | None], bool] = default_focus_check) -> None:
+                 focus_check: Callable[[int | None], bool] = default_focus_check,
+                 app_focus_check: Callable[[], bool] = default_app_focus_check,
+                 client_rect: Callable[[int | None], tuple[int, int, int, int] | None] = default_client_rect) -> None:
         super().__init__()
         self.settings = settings
         self.signals = signals
@@ -62,6 +80,9 @@ class Controller(QObject):
         self._key_source = key_source
         self._clock = clock
         self._focus_check = focus_check
+        self._app_focus_check = app_focus_check
+        self._client_rect = client_rect
+        self._overlay_visible = False
         self._engine = KeybindEngine()
         self._capturing = False
         self._game_hwnd: int | None = None
@@ -96,6 +117,7 @@ class Controller(QObject):
     def shutdown(self) -> None:
         """Stop ticking and release the game (called on quit)."""
         self.stop()
+        self.signals.overlay_frame.emit(OverlayFrame())  # hide the overlay
         self.settings.player.unfreeze_all()
         self.process.detach()
 
@@ -120,6 +142,7 @@ class Controller(QObject):
                     self._run_aimbot(states)
                     self._apply_player_values()
             self._drop_unapplied_sets()
+            self._update_overlay()
             if now >= self._next_status:
                 self._next_status = now + config.STATUS_INTERVAL_S
                 self.signals.status_changed.emit(self.status())
@@ -199,6 +222,21 @@ class Controller(QObject):
         if self._pending_sets:
             self._pending_sets = []
             self.signals.notice.emit("Not in a match: nothing written")
+
+    def _update_overlay(self) -> None:
+        """Build this tick's ESP frame and send it to the overlay (or tell it to hide)."""
+        frame = OverlayFrame()  # hidden
+        rect = self._client_rect(self.game_hwnd) if self.state is not None else None
+        if rect is not None and self.state is not None and (self._game_focused or self._app_focus_check()):
+            x, y, w, h = rect
+            primitives = esp.build_esp(self.state, self.settings.esp, self.settings.aimbot, w, h,
+                                       self.aim_target_address)
+            if primitives:
+                frame = OverlayFrame(True, x, y, w, h, tuple(primitives))
+        # Only emit "hidden" once, not every tick.
+        if frame.visible or self._overlay_visible:
+            self.signals.overlay_frame.emit(frame)
+        self._overlay_visible = frame.visible
 
     def _run_aimbot(self, states: ActionStates) -> None:
         """Aim only when enabled, the activation key is active, and the game (not the menu) is focused."""

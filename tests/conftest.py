@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("QT_QPA_FONTDIR", "C:/Windows/Fonts")  # offscreen Qt finds no fonts without this
 
 from PyQt5.QtWidgets import QApplication  # noqa: E402
 

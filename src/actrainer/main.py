@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import QApplication
 
 from actrainer import __version__, config
 from actrainer.app.controller import Controller
+from actrainer.overlay.window import OverlayWindow
 from actrainer.settings.signals import AppSignals
 from actrainer.settings.store import ProfileStore
 from actrainer.ui.menu_window import MenuWindow
@@ -51,10 +52,15 @@ def main() -> int:
     session = ProfileSession(store, settings, signals, profile_name)
     controller = Controller(settings, signals)
     menu = MenuWindow(settings, signals, session, lambda: controller.game_hwnd)
+    overlay = OverlayWindow(settings)
+    signals.overlay_frame.connect(overlay.show_frame)
+    signals.settings_changed.connect(lambda section: overlay.apply_fps() if section == "general" else None)
+    signals.refresh_requested.connect(overlay.apply_fps)  # profile load / reset may change overlay FPS
 
     def quit_app() -> None:
         log.info("quitting")
         controller.shutdown()
+        overlay.close()
         menu.allow_close()
         menu.close()
         app.quit()

@@ -86,7 +86,8 @@ class EspSettings:
     thickness: int = ranged(1, config.LINE_THICKNESS_RANGE)
     enemy_colour: str = "#FF4040FF"
     team_colour: str = "#40A0FFFF"
-    enemies_only: bool = False
+    team_mode: bool = False     # off = free-for-all: every bot is an enemy (FFA bots still carry team values)
+    enemies_only: bool = False  # only meaningful with team_mode
     show_name: bool = True
     show_health_bar: bool = True
     show_health_number: bool = False

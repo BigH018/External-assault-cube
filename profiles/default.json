@@ -26,6 +26,7 @@
     "thickness": 1,
     "enemy_colour": "#FF4040FF",
     "team_colour": "#40A0FFFF",
+    "team_mode": false,
     "enemies_only": false,
     "show_name": true,
     "show_health_bar": true,

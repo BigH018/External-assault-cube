@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from actrainer import offsets
+from actrainer.features.primitives import OverlayFrame, Rect
 from actrainer.game.player import read_player
 from actrainer.input.actions import (
     AIMBOT_ACTIVATE,
@@ -22,6 +23,7 @@ from actrainer.app.controller import Controller
 from actrainer.maths.angles import calc_aim_angles
 from actrainer.settings.models import Settings
 from actrainer.settings.signals import AppSignals
+from helpers import gl_matrix as gl
 from helpers.fake_game import make_fake_game
 
 KEY_F7 = 0x76
@@ -300,3 +302,50 @@ def test_status_carries_live_player_values(settings: Settings, signals: AppSigna
     controller.tick()
     values = controller.status().player_values
     assert values["health"] == 100 and values["mag:pistol"] == 10
+
+
+# --- overlay frames (Phase 9) -----------------------------------------------------------------
+
+
+def make_overlay_controller(settings: Settings, signals: AppSignals, game_focused: bool, app_focused: bool):  # noqa: ANN201
+    proc, _, _ = make_fake_game(local={"yaw": 90.0, "head": (0.0, 0.0, 4.5), "feet": (0.0, 0.0, 0.0)},
+                                bots=[{"name": b"Ahead", "head": (50.0, 0.0, 4.5), "feet": (50.0, 0.0, 0.0)}],
+                                matrix=gl.ac_view_projection((0.0, 0.0, 4.5), 90.0, 0.0, width=800, height=600))
+    frames: list[OverlayFrame] = []
+    signals.overlay_frame.connect(frames.append)
+    controller = Controller(settings, signals, process=proc, key_source=Keys(), clock=Clock(),  # type: ignore[arg-type]
+                            focus_check=lambda _h: game_focused, app_focus_check=lambda: app_focused,
+                            client_rect=lambda _h: (100, 50, 800, 600))
+    return controller, frames
+
+
+def test_overlay_frame_sent_when_game_focused(settings: Settings, signals: AppSignals) -> None:
+    settings.esp.enabled = True
+    controller, frames = make_overlay_controller(settings, signals, game_focused=True, app_focused=False)
+    controller.tick()
+    frame = frames[-1]
+    assert frame.visible and (frame.x, frame.y, frame.width, frame.height) == (100, 50, 800, 600)
+    assert any(isinstance(p, Rect) for p in frame.primitives)
+
+
+def test_overlay_visible_while_menu_focused(settings: Settings, signals: AppSignals) -> None:
+    settings.esp.enabled = True
+    controller, frames = make_overlay_controller(settings, signals, game_focused=False, app_focused=True)
+    controller.tick()
+    assert frames[-1].visible
+
+
+def test_overlay_hidden_when_something_else_focused_and_hide_sent_once(settings: Settings, signals: AppSignals) -> None:
+    settings.esp.enabled = True
+    controller, frames = make_overlay_controller(settings, signals, game_focused=True, app_focused=False)
+    controller.tick()
+    controller._focus_check = lambda _h: False  # noqa: SLF001 - user alt-tabs to another app
+    controller.tick()
+    controller.tick()
+    assert [f.visible for f in frames] == [True, False]
+
+
+def test_overlay_hidden_when_nothing_to_draw(settings: Settings, signals: AppSignals) -> None:
+    controller, frames = make_overlay_controller(settings, signals, game_focused=True, app_focused=False)
+    controller.tick()  # ESP and aimbot both off by default
+    assert frames == []

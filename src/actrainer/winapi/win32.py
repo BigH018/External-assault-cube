@@ -2,7 +2,7 @@
 
 Covers: global key state, DPI awareness, finding a process's main window, window/client rects,
 foreground control (including the AttachThreadInput trick) and reading an exe's file version.
-Overlay window styles (WS_EX_LAYERED | WS_EX_TRANSPARENT) are added in Phase 9.
+and overlay window styles (click-through: WS_EX_LAYERED | WS_EX_TRANSPARENT).
 """
 
 from __future__ import annotations
@@ -57,6 +57,10 @@ _user32.SetFocus.argtypes = [wintypes.HWND]
 _user32.SetFocus.restype = wintypes.HWND
 _user32.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
 _user32.AttachThreadInput.restype = wintypes.BOOL
+_user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+_user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
+_user32.SetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
+_user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
 _kernel32.GetCurrentThreadId.argtypes = []
 _kernel32.GetCurrentThreadId.restype = wintypes.DWORD
 
@@ -83,6 +87,11 @@ _GW_OWNER = 4                     # GetWindow: owner window (top-level "main" wi
 _SW_SHOW = 5
 _SW_RESTORE = 9
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_GWL_EXSTYLE = -20
+_WS_EX_TRANSPARENT = 0x00000020   # mouse clicks pass through to the window underneath
+_WS_EX_TOOLWINDOW = 0x00000080    # no taskbar button, not in Alt+Tab
+_WS_EX_LAYERED = 0x00080000       # required (with TRANSPARENT) for per-pixel alpha + click-through
+_WS_EX_NOACTIVATE = 0x08000000    # clicking/showing never steals focus from the game
 _MAX_PATH_CHARS = 1024
 _DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = ctypes.c_void_p(-4)
 _PROCESS_PER_MONITOR_DPI_AWARE = 2
@@ -217,6 +226,18 @@ def force_foreground(hwnd: int) -> bool:
     if not ok:
         log.debug("force_foreground(0x%X) did not take effect", hwnd)
     return ok
+
+
+def make_click_through(hwnd: int) -> None:
+    """Give a window the overlay extended styles: click-through, never activated, no taskbar entry.
+
+    Qt's WA_TransparentForMouseEvents only affects Qt's own event handling. Windows itself still
+    hit-tests the window unless it has WS_EX_LAYERED | WS_EX_TRANSPARENT, so clicks would land on the
+    overlay instead of the game.
+    """
+    style = _user32.GetWindowLongPtrW(hwnd, _GWL_EXSTYLE)
+    style |= _WS_EX_LAYERED | _WS_EX_TRANSPARENT | _WS_EX_TOOLWINDOW | _WS_EX_NOACTIVATE
+    _user32.SetWindowLongPtrW(hwnd, _GWL_EXSTYLE, style)
 
 
 # --- process info -------------------------------------------------------------------------

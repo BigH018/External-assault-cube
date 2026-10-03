@@ -23,7 +23,10 @@ class EspTab(QWidget):
         general, g = group("General")
         g.addWidget(row(b.checkbox("enabled", "Enable ESP"), None,
                         QLabel("Toggle key"), self.keys.button(ESP_TOGGLE)))
-        g.addWidget(b.checkbox("enemies_only", "Enemies only"))
+        g.addWidget(row(b.checkbox("team_mode", "Team mode",
+                                   "On: teammates get the team colour and 'Enemies only' applies. Off (free-for-all): "
+                                   "every bot is an enemy, since FFA bots still carry team values."),
+                        b.checkbox("enemies_only", "Enemies only (team mode)"), stretch_last=True))
 
         styles, s = group("Styles (combine freely)")
         s.addWidget(row(b.checkbox("box_2d", "2D box"), b.checkbox("corner_box", "Corner box"),

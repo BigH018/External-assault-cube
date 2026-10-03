@@ -28,3 +28,5 @@ class AppSignals(QObject):
     status_changed = pyqtSignal(object)  # app.controller.ControllerStatus
     # Controller -> menu: short user-facing message (e.g. "Health set to 999", "Not in a match").
     notice = pyqtSignal(str)
+    # Controller -> overlay: features.primitives.OverlayFrame for the next repaint.
+    overlay_frame = pyqtSignal(object)
