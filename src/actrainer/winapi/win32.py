@@ -7,6 +7,7 @@ handling and extended window styles are added in later phases.
 from __future__ import annotations
 
 import ctypes
+from collections.abc import Iterable
 
 _user32 = ctypes.WinDLL("user32", use_last_error=True)
 
@@ -24,3 +25,8 @@ def is_key_down(vk: int) -> bool:
     instead of using Qt key events.
     """
     return bool(_user32.GetAsyncKeyState(vk) & _KEY_DOWN_MASK)
+
+
+def get_pressed_keys(vks: Iterable[int]) -> set[int]:
+    """The subset of `vks` currently held down. Feeds the keybind engine each tick."""
+    return {vk for vk in vks if is_key_down(vk)}

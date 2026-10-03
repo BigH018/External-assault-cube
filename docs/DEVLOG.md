@@ -4,6 +4,30 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — Phase 4: Settings + keybinds core
+
+**Built**
+- `config.py`: paths (profiles dir, default/last profile), `STAT_VALUES` / `WEAPONS`, setting ranges, value caps.
+- `settings/models.py`: `Settings` with general/aimbot/esp/player/keybinds sections; ranges in field metadata (`ranged()`,
+  `field_range()`); `PlayerSettings.unfreeze_all()`; `Settings.replace_with()` for in-place profile loads.
+- `settings/store.py`: `to_dict` / `from_dict` (forgiving: unknown ignored, missing → default, bad → default, numbers
+  clamped, warnings collected), schema versioning with a migration table, `ProfileStore` (list/load/save/rename/delete,
+  atomic saves, read-only `default`, Windows-reserved names blocked, last-used marker, `load_startup()` fallback chain).
+- `input/keys.py` (VK ↔ names), `input/actions.py` (registry: menu, panic, quit, aimbot, aimbot/esp toggles, set_/freeze_
+  for 4 stats + 6 weapons), `input/keybinds.py` (`KeybindEngine` HOLD/TOGGLE/PRESS + suspension + reset, `find_conflicts`).
+- `winapi/win32.py`: `get_pressed_keys()`.
+- `profiles/default.json` generated from code defaults.
+- `tools/phase4_keybinds.py`: live engine output with real keys.
+- Tests: models, store, keys, keybinds. **176 tests total, all passing.**
+
+**Decisions**
+- New `input/actions.py` to avoid a models ↔ keybinds import cycle.
+- Profiles store key names (`"INSERT"`), not VK ints.
+- Bind capture/suspension: edges are still tracked while suspended, so the captured key doesn't fire when capture ends.
+- `default` is read-only. A test keeps `default.json` in sync with code defaults.
+
+---
+
 ## 2026-10-03 — Phase 3: Maths
 
 **Built**

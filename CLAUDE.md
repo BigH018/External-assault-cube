@@ -93,12 +93,13 @@ assault cube project/
   docs/
     DEVLOG.md                   ✅ dated log of what was built, decisions and bugs fixed
   profiles/
-    default.json                🔲 [4] committed default profile (all other profiles are git-ignored)
+    default.json                ✅ committed default profile = code defaults (test-enforced; all other profiles are git-ignored)
   tools/
     phase1_local_player.py      ✅ live print of local player position/angles/health/team (auto-reattach)
     phase1_dead_diag.py         ✅ F9 snapshots (alive/dead/alive) of the player struct; prints changed offsets + camera vs player ptr
     phase2_entities.py          ✅ live table of every bot (name/hp/armor/team/head/distance/state) + raw slot list
     phase3_angles_check.py      ✅ read-only: your view angles vs calc_aim_angles for the bot nearest your crosshair
+    phase4_keybinds.py          ✅ live keybind engine with real keys (HOLD/TOGGLE/PRESS incl. mouse buttons)
     phase8_view_matrix.py       🔲 [8] prints one bot's screen coords to verify world_to_screen
   tests/
     helpers/__init__.py         ✅ makes shared helpers importable (pytest pythonpath = tests)
@@ -110,8 +111,10 @@ assault cube project/
     maths/test_angles.py        ✅ aim angles (cardinal dirs, +90 offset, round trip), normalisation, shortest-path smoothing, FOV
     maths/test_projection.py    ✅ world_to_screen: column-major, y flip, behind-camera, AC-engine matrix centre/up/right tests, FOV circle
     maths/test_skeleton.py      ✅ skeleton heights, symmetry, perpendicular to facing, crouch scaling, bones
-    settings/test_store.py      🔲 [4] profile round-trip, defaults, schema migration
-    input/test_keybinds.py      🔲 [4] hold/toggle/press-once state machine, conflicts
+    settings/test_models.py     ✅ ranges, defaults within caps, weapons match offsets, unfreeze_all, replace_with
+    settings/test_store.py      ✅ round-trip, forgiving load, clamping, keybind names/modes, migration, files, startup, default.json sync
+    input/test_keys.py          ✅ name round-trip, unknown/unbound, Escape + generic modifiers not bindable
+    input/test_keybinds.py      ✅ hold/toggle/press, suspension, reset, conflicts, action registry
     features/test_aimbot.py     🔲 [6] target selection + priority + filters
     features/test_player_values.py 🔲 [7] set-now/freeze logic and value validation
     features/test_esp.py        🔲 [9] draw-primitive generation
@@ -119,13 +122,14 @@ assault cube project/
     __init__.py                 ✅ package marker, __version__
     __main__.py                 🔲 [5] lets `python -m actrainer` call main.main()
     main.py                     🔲 [5] entry point: DPI awareness, QApplication, load profile, wire services, start tick
-    config.py                   ✅ non-offset constants: process name, pointer/world/health sanity limits (caps, rates, paths added later)
+    config.py                   ✅ non-offset constants: paths, process name, sanity limits, STAT_VALUES/WEAPONS, setting ranges, value caps
     offsets.py                  ✅ ALL offsets + GAME_VERSION + PLAYER_READ_SIZE: single source of truth
     app/
       controller.py             🔲 [6] QTimer tick: keybinds -> GameState -> aimbot -> values -> ESP -> overlay
     settings/
-      models.py                 🔲 [4] dataclasses for all settings (pure)
-      store.py                  🔲 [4] load/save/list/rename/delete profiles, defaults, schema migration
+      __init__.py               ✅ package marker
+      models.py                 ✅ Settings + sections, enums, ranged() field metadata, field_range, replace_with (pure)
+      store.py                  ✅ to_dict/from_dict (forgiving, clamping, migrations) + ProfileStore (files, read-only default, last profile, startup)
       signals.py                🔲 [5] Qt signal hub so UI changes apply live
     memory/
       __init__.py               ✅ package marker (only package allowed to import pymem)
@@ -150,8 +154,10 @@ assault cube project/
       esp.py                    🔲 [9] settings + GameState -> list of draw primitives (no Qt)
       player_values.py          🔲 [7] set-now and freeze logic
     input/
-      keys.py                   🔲 [4] key names <-> virtual-key codes, mouse buttons
-      keybinds.py               🔲 [4] action registry, hold/toggle/press-once state machine, conflicts
+      __init__.py               ✅ package marker
+      keys.py                   ✅ VK <-> names, BINDABLE_VKS, mouse buttons
+      actions.py                ✅ BindMode, Bind, ActionDef, ACTIONS registry, default_binds, set_/freeze_ action ids
+      keybinds.py               ✅ KeybindEngine (HOLD/TOGGLE/PRESS, suspended, reset_toggles), ActionStates, find_conflicts
     ui/
       theme.py                  🔲 [5] dark stylesheet, colours, fonts
       menu_window.py            🔲 [5] main window with tabs and status bar
@@ -170,7 +176,7 @@ assault cube project/
       painter.py                🔲 [9] draws a list of primitives with QPainter
     winapi/
       __init__.py               ✅ package marker (only package allowed to make ctypes Win32 calls)
-      win32.py                  ✅ [1] is_key_down (GetAsyncKeyState); 🔲 [4+] ctypes: find window, client rect, foreground, DPI, key states, ex-styles, file version
+      win32.py                  ✅ is_key_down, get_pressed_keys (GetAsyncKeyState); 🔲 [5+] ctypes: find window, client rect, foreground, DPI, key states, ex-styles, file version
 ```
 
 ---
@@ -271,49 +277,71 @@ entities and invalid data without crashing.
 
 ## 7. Settings system
 
-- `settings/models.py`: one root `Settings` dataclass made of `GeneralSettings`, `AimbotSettings`,
-  `EspSettings`, `PlayerSettings` (a dict of `value_id -> ValueSetting(target, freeze)`) and
-  `KeybindSettings` (a dict of `action_id -> Bind(key, mode)`). Colours are stored as `"#RRGGBBAA"`
-  strings so the models stay Qt-free.
+- **`settings/models.py`** (pure): root `Settings` = `GeneralSettings` (tick rate, overlay FPS, `menu_pos`),
+  `AimbotSettings`, `EspSettings`, `PlayerSettings` (`values: {stat -> ValueSetting(target, freeze)}` for
+  `config.STAT_VALUES`, `ammo: {weapon -> AmmoSetting(mag, reserve, freeze)}` for `config.WEAPONS`) and
+  `KeybindSettings` (`binds: {action_id -> Bind(key, mode)}`, defaults from the action registry).
+  Enums: `AimTarget`, `TargetPriority`, `SnaplineOrigin`. Colours are `"#RRGGBBAA"` strings, so models stay Qt-free.
+- **Ranges live in field metadata:** `fov_deg: float = ranged(15.0, config.AIM_FOV_RANGE)`. `field_range(cls, name)`
+  returns `(min, max)`. The store clamps with it and the UI uses it for slider/spinbox limits, so a range is defined once in
+  `config.py`. Per-stat target caps come from `config.STAT_VALUE_RANGES`.
 - **One shared `Settings` instance** is created in `main.py`. UI tabs mutate it directly and then emit a
   signal from `settings/signals.py`. The controller reads it each tick, so changes apply live with no restart.
-  Signals exist only for things that must *react* (e.g. tick rate → timer interval, overlay visibility).
+  Signals exist only for things that must *react* (e.g. tick rate -> timer interval, overlay visibility).
+  **Never cache a section** (`aim = settings.aimbot`) beyond one tick/handler: `Settings.replace_with(other)` (used on profile
+  load/reset) swaps the section objects in place on the shared root.
 - **Explicit save only.** Changes apply live but are not written to disk until the user clicks Save.
   Unsaved changes show a marker (`*` in the window title + "Unsaved changes" label in the Settings tab).
   Any `settings_changed` signal sets the dirty flag. Save, load and reset clear it.
-- `settings/store.py`: profiles are `profiles/<name>.json`. The last used profile name is kept in
-  `profiles/.last_profile` (git-ignored) and auto-loaded on startup. `profiles/default.json` is committed.
-- **Versioning:** each profile has `"schema_version": N`. `store.py` holds `CURRENT_SCHEMA_VERSION` and an
-  ordered list of `migrate_vN_to_vN+1(dict) -> dict` functions applied on load. Unknown keys are ignored
-  (and logged). Missing keys fall back to dataclass defaults. Out-of-range values are clamped.
+- **`settings/store.py`:** `to_dict` / `from_dict` (pure) + `ProfileStore` (files).
+  - Profiles are `profiles/<name>.json` with readable values: keys as names (`"INSERT"`), enums as strings.
+  - **Forgiving load:** unknown keys are ignored, missing keys keep defaults, wrong types / bad enums / bad colours
+    fall back to the default, and numbers are clamped. Each problem becomes a warning (logged + `ProfileStore.last_warnings`).
+    Only a missing/unreadable file or invalid JSON raises `ProfileError`.
+  - **Names:** letters, digits, space, `_`, `-` (max 40), no Windows device names (`CON`, `NUL`, ...).
+  - **`default` is read-only:** it can't be saved over, renamed or deleted (use Save as). "Reset to defaults" uses
+    `default_settings()` (code), not the file.
+  - **Startup:** `load_startup()` -> last used (`profiles/.last_profile`, git-ignored) -> `default.json` -> built-in defaults. Never raises.
+  - Saves are atomic (write `.tmp`, then `os.replace`).
+- **Versioning:** each profile has `"schema_version"`. `store.CURRENT_SCHEMA_VERSION` (now **1**) and
+  `store.MIGRATIONS[from_version] = fn(dict) -> dict` run in order on load. A newer-version profile loads best-effort with a warning.
+- **`profiles/default.json` must equal the code defaults** (a test enforces it). Regenerate after changing any default:
+  `python -c "from actrainer.settings.store import ProfileStore, default_settings as d; ProfileStore().save('default', d(), allow_read_only=True)"`
 
 ### Adding a new setting end-to-end
-1. **Model:** add a typed field with a default to the right dataclass in `settings/models.py`.
-   Put min/max/step constants in `config.py`.
-2. **Default/version:** if old profiles need a value other than the default, bump
-   `CURRENT_SCHEMA_VERSION` and add a migration. Update `profiles/default.json`.
-3. **UI control:** add the widget in the relevant `ui/tabs/*_tab.py`, initialise it from settings,
+1. **Model:** add a typed field with a default to the right dataclass in `settings/models.py`. If it's numeric,
+   use `ranged(default, config.SOME_RANGE)` and add the range to `config.py`.
+2. **Profile:** regenerate `profiles/default.json` (command above). Only if old profiles would load *wrongly*
+   (renamed/moved/re-meaning field), bump `CURRENT_SCHEMA_VERSION` and add a migration + test.
+3. **UI control:** add the widget in the relevant `ui/tabs/*_tab.py`, initialise it from settings (limits from `field_range`),
    write back on change, emit `settings_changed`. Also refresh it in the tab's `load_from_settings()` (called after a profile load).
 4. **Feature:** read the field in the feature module (`features/*.py`) and add a unit test.
 5. Update this file (§7 if the pattern changed, §13 status).
 
 ---
 
-## 8. Keybind system (`input/keys.py`, `input/keybinds.py`)
+## 8. Keybind system (`input/keys.py`, `input/actions.py`, `input/keybinds.py`)
 
-- Keys are stored as **virtual-key codes** (ints) and shown as names via `keys.py`.
-  Supported mouse buttons: LMB, RMB, MMB, Mouse4 (X1), Mouse5 (X2). The scroll wheel **can't** be polled with `GetAsyncKeyState`.
-- **Modes:** `HOLD` (active while held), `TOGGLE` (flips on each press), `PRESS` (fires once on the press edge).
-  Each action declares which modes it allows and a default.
-- The state machine is pure: `update(pressed_vks: set[int]) -> ActionStates`. It's fed by
-  `winapi.get_pressed_keys()`, which makes it testable without Windows.
+- **`keys.py`:** binds are VK codes (ints) in memory and names in JSON (`key_name` / `vk_from_name`). `BINDABLE_VKS` =
+  letters, digits, F1-F24, numpad, navigation keys, punctuation, L/R Shift/Ctrl/Alt, and mouse LMB, RMB, MMB, MOUSE4, MOUSE5.
+  **Not bindable:** the scroll wheel (can't be polled), generic Shift/Ctrl/Alt 0x10-0x12 (they fire with the L/R
+  variants), and **Escape** (clears a bind in the capture).
+- **`actions.py`:** `BindMode` (`HOLD` active while held / `TOGGLE` flips per press / `PRESS` fires once on the down edge),
+  `Bind(key, mode)`, `ActionDef(id, label, category, allowed_modes, default_mode, default_key)`, the `ACTIONS` registry
+  and `default_binds()`. It's a separate module so `settings/models.py` can import defaults without a cycle.
+- **`keybinds.py`:** `KeybindEngine.update(pressed_vks, binds, suspended=False) -> ActionStates` (pure).
+  `states.is_active(id)` (HOLD held / TOGGLE on), `states.fired(id)` (down edge this tick, any mode).
+  `suspended=True` while the menu captures a bind: edges are tracked but nothing fires, so the captured key doesn't trigger
+  afterwards. `reset_toggles()` is used by panic. Fed each tick by `winapi.get_pressed_keys(BINDABLE_VKS)`.
+- **Actions:** `menu_toggle` (INSERT), `panic` (END), `quit` (unbound), `aimbot` (RMB, HOLD or TOGGLE),
+  `aimbot_enable_toggle`, `esp_toggle`, and for every stat/weapon `set_<id>` + `freeze_<id>` (all unbound, PRESS).
+  Everything except `aimbot` is PRESS-only.
 - **Registering a new action:**
-  1. Add an `ActionDef(id, label, category, allowed_modes, default_mode, default_key)` to the registry in `keybinds.py`.
-  2. Add its default bind to `KeybindSettings` defaults (and `profiles/default.json`).
+  1. Add an `ActionDef` in `actions._build_actions()` (use a module constant for its id if the controller references it).
+  2. Regenerate `profiles/default.json` (§7).
   3. Handle the action in `app/controller.py` (read its state each tick).
   4. The Keybinds tab lists the registry automatically, so no UI work is needed.
-- **Conflicts:** `find_conflicts(binds) -> list[(key, [action_ids])]`. The Keybinds tab highlights them.
-- Default binds: menu toggle `INSERT` (PRESS), panic `END` (PRESS), quit unbound, aimbot RMB (HOLD).
+- **Conflicts:** `find_conflicts(binds) -> {vk: [action_ids]}`. The Keybinds tab highlights them. Default binds have none (tested).
 
 ---
 
@@ -427,7 +455,7 @@ entities and invalid data without crashing.
 - [x] Phase 1: Memory: attach, read local player, live debug print *(done 2026-10-03: local player pointer corrected to 0x18AC00; dead flag 0x318 verified)*
 - [x] Phase 2: Entities: print every bot *(built + verified against running game: 7 bots read; awaiting user test)*
 - [x] Phase 3: Maths: angles, projection, skeleton + tests *(107 tests passing; awaiting in-game angle check)*
-- [ ] Phase 4: Settings + keybinds core + tests
+- [x] Phase 4: Settings + keybinds core + tests *(176 tests passing; awaiting user check of phase4_keybinds)*
 - [ ] Phase 5: Menu shell (all tabs wired to settings, profiles, menu hotkey)
 - [ ] Phase 6: Controller + aimbot
 - [ ] Phase 7: Player values (set-now, freeze, keybinds)
@@ -435,7 +463,7 @@ entities and invalid data without crashing.
 - [ ] Phase 9: Overlay + ESP + FOV circle
 - [ ] Phase 10: Polish (panic, reattach, status, conflicts, error handling, docs)
 
-**Next:** user runs phase3_angles_check → commit → Phase 4 (settings + keybinds core).
+**Next:** user checks Phase 4 → commit → Phase 5 (menu shell).
 
 ---
 
@@ -481,6 +509,15 @@ entities and invalid data without crashing.
   so it stays correct when looking steeply up or down.
 - **2026-10-03:** Skeleton right vector is `up × forward` (AC world is left-handed). The first version used `forward × up`
   and the projection test showed it landing screen-left.
+- **2026-10-03:** Added `input/actions.py` (registry + Bind/BindMode) separate from the state machine. models.py needs
+  default binds and keybinds.py needs modes; one shared module avoids a circular import.
+- **2026-10-03:** Setting ranges are stored as dataclass field metadata (`ranged()`), so store clamping and UI limits share
+  one source. Profiles store key NAMES, not VK numbers, so they're readable and hand-editable.
+- **2026-10-03:** Player values: one `ValueSetting` per stat (health/armor/grenades/akimbo), one `AmmoSetting` (mag + reserve,
+  shared freeze) per weapon. That matches the approved menu sketch and gives 10 set + 10 freeze actions.
+- **2026-10-03:** `default` profile is read-only and must equal code defaults (test). Reset uses code defaults.
+  Aimbot team check defaults OFF (FFA finding from Phase 2).
+- **2026-10-03:** Only `aimbot` allows HOLD/TOGGLE. All other actions are PRESS (set-now fires, toggles flip a setting).
 - **2026-10-03:** Shared test fakes live in `tests/helpers/` (pytest `pythonpath = ["tests"]`). `FakeProcess` is
   duck-typed (read_bytes / read_u32 / read_i32 / module_base), so game-layer code is tested without the game.
 - **2026-10-03:** src layout (`src/actrainer`) + `pyproject.toml` editable install, so tools, tests and

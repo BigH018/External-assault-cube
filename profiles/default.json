@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "general": {
+    "tick_rate_hz": 60,
+    "overlay_fps": 60,
+    "menu_pos": null
+  },
+  "aimbot": {
+    "enabled": false,
+    "target": "head",
+    "priority": "crosshair",
+    "fov_deg": 15.0,
+    "draw_fov": true,
+    "fov_colour": "#FFFFFF80",
+    "fov_thickness": 1,
+    "smoothing": 1.0,
+    "team_check": false,
+    "max_distance": 500.0
+  },
+  "esp": {
+    "enabled": false,
+    "box_2d": true,
+    "corner_box": false,
+    "head_circle": false,
+    "skeleton": false,
+    "thickness": 1,
+    "enemy_colour": "#FF4040FF",
+    "team_colour": "#40A0FFFF",
+    "enemies_only": false,
+    "show_name": true,
+    "show_health_bar": true,
+    "show_health_number": false,
+    "show_distance": true,
+    "show_snaplines": false,
+    "snapline_origin": "bottom"
+  },
+  "player": {
+    "values": {
+      "health": {
+        "target": 100,
+        "freeze": false
+      },
+      "armor": {
+        "target": 100,
+        "freeze": false
+      },
+      "grenades": {
+        "target": 3,
+        "freeze": false
+      },
+      "akimbo": {
+        "target": 20,
+        "freeze": false
+      }
+    },
+    "ammo": {
+      "pistol": {
+        "mag": 10,
+        "reserve": 100,
+        "freeze": false
+      },
+      "carbine": {
+        "mag": 10,
+        "reserve": 100,
+        "freeze": false
+      },
+      "shotgun": {
+        "mag": 7,
+        "reserve": 100,
+        "freeze": false
+      },
+      "smg": {
+        "mag": 30,
+        "reserve": 100,
+        "freeze": false
+      },
+      "sniper": {
+        "mag": 5,
+        "reserve": 100,
+        "freeze": false
+      },
+      "assault": {
+        "mag": 20,
+        "reserve": 100,
+        "freeze": false
+      }
+    }
+  },
+  "keybinds": {
+    "menu_toggle": {
+      "key": "INSERT",
+      "mode": "press"
+    },
+    "panic": {
+      "key": "END",
+      "mode": "press"
+    },
+    "quit": {
+      "key": null,
+      "mode": "press"
+    },
+    "aimbot": {
+      "key": "RMB",
+      "mode": "hold"
+    },
+    "aimbot_enable_toggle": {
+      "key": null,
+      "mode": "press"
+    },
+    "esp_toggle": {
+      "key": null,
+      "mode": "press"
+    },
+    "set_health": {
+      "key": null,
+      "mode": "press"
+    },
+    "freeze_health": {
+      "key": null,
+      "mode": "press"
+    },
+    "set_armor": {
+      "key": null,
+      "mode": "press"
+    },
+    "freeze_armor": {
+      "key": null,
+      "mode": "press"
+    },
+    "set_grenades": {
+      "key": null,
+      "mode": "press"
+    },
+    "freeze_grenades": {
+      "key": null,
+      "mode": "press"
+    },
+    "set_akimbo": {
+      "key": null,
+      "mode": "press"
+    },
+    "freeze_akimbo": {
+      "key": null,
+      "mode": "press"
+    },
+    "set_pistol": {
+      "key": null,
+      "mode": "press"
+    },
+    "freeze_pistol": {
+      "key": null,
+      "mode": "press"
+    },
+    "set_carbine": {
+      "key": null,
+      "mode": "press"
+    },
+    "freeze_carbine": {
+      "key": null,
+      "mode": "press"
+    },
+    "set_shotgun": {
+      "key": null,
+      "mode": "press"
+    },
+    "freeze_shotgun": {
+      "key": null,
+      "mode": "press"
+    },
+    "set_smg": {
+      "key": null,
+      "mode": "press"
+    },
+    "freeze_smg": {
+      "key": null,
+      "mode": "press"
+    },
+    "set_sniper": {
+      "key": null,
+      "mode": "press"
+    },
+    "freeze_sniper": {
+      "key": null,
+      "mode": "press"
+    },
+    "set_assault": {
+      "key": null,
+      "mode": "press"
+    },
+    "freeze_assault": {
+      "key": null,
+      "mode": "press"
+    }
+  }
+}

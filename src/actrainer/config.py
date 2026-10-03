@@ -6,6 +6,17 @@ This module is pure: no I/O, no third-party imports.
 
 from __future__ import annotations
 
+from pathlib import Path
+
+# --- Paths -------------------------------------------------------------------
+# src/actrainer/config.py -> parents[2] is the project root (works with the editable install).
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROFILES_DIR = PROJECT_ROOT / "profiles"
+PROFILE_EXTENSION = ".json"
+LAST_PROFILE_FILE = ".last_profile"   # inside PROFILES_DIR, git-ignored
+DEFAULT_PROFILE = "default"           # committed and read-only (overwrite with "Save as")
+PROFILE_NAME_MAX_LENGTH = 40
+
 # --- Process -----------------------------------------------------------------
 
 PROCESS_NAME = "ac_client.exe"
@@ -40,3 +51,28 @@ MAX_ENTITIES = 64
 # --- Strings -----------------------------------------------------------------
 
 NAME_ENCODING = "latin-1"  # AC names are plain single-byte chars; latin-1 never fails to decode
+
+# --- Editable player values ----------------------------------------------------
+# Single-int values and weapons (each weapon has magazine + reserve ammo).
+# WEAPONS must match the keys of offsets.MAG_AMMO / offsets.RESERVE_AMMO (checked by a test).
+STAT_VALUES = ("health", "armor", "grenades", "akimbo")
+WEAPONS = ("pistol", "carbine", "shotgun", "smg", "sniper", "assault")
+
+# --- Setting ranges (min, max) --------------------------------------------------
+# Used by settings/models.py field metadata. That makes them the single source for store clamping AND UI slider limits.
+TICK_RATE_RANGE = (10, 240)            # Hz
+OVERLAY_FPS_RANGE = (10, 240)          # frames per second
+AIM_FOV_RANGE = (1.0, 180.0)           # degrees from the crosshair
+AIM_SMOOTHING_RANGE = (1.0, 30.0)      # 1 = instant snap
+AIM_MAX_DISTANCE_RANGE = (10.0, 2000.0)  # world units (player eye height is about 4.5 units)
+LINE_THICKNESS_RANGE = (1, 10)         # pixels
+
+# Value caps for the Player tab: no negatives, sensible maximums.
+STAT_VALUE_RANGES = {
+    "health": (1, 999),
+    "armor": (0, 999),
+    "grenades": (0, 99),
+    "akimbo": (0, 999),
+}
+MAG_AMMO_RANGE = (0, 999)
+RESERVE_AMMO_RANGE = (0, 999)
