@@ -4,6 +4,30 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — Phase 6: Controller + aimbot
+
+**Built**
+- `game/local_player.write_view_angles`: yaw + pitch in one 8-byte write.
+- `game/state.read_game_state`: local player + live bots per tick (None outside a match).
+- `features/aimbot.py` (pure): aim point (head / body at 60% height), filters (dead always ignored, team check, max distance,
+  angular FOV), priorities (crosshair / distance / lowest health, deterministic tie-breaks), smoothed angles via `smooth_angles`.
+- `app/controller.py`: full GameState read each tick; aimbot runs only when enabled + bind active + game focused;
+  `focus_check` injectable for tests; entity count = live bots.
+- Tests: aimbot (filters, priorities, smoothing, body vs head, dead local, 0/360 wrap), game state + angle write,
+  controller aimbot wiring incl. toggle mode. `FakeProcess` gained writes/lifecycle; `make_fake_game()` builds the real layout.
+  **229 tests total, all passing.**
+
+**Decisions**
+- Aim only while the game window is focused (safety).
+- No target locking yet. Crosshair priority naturally keeps the current target while you aim at it.
+
+**Verified**
+- 5 s real run attached to the game at 60 Hz with no errors (aimbot off by default, so no writes).
+- User tested in-game: snap/follow, FOV, smoothing, head/body, priorities, max distance, toggle mode,
+  focus safety, 0/360 wrap, dead, panic. All working.
+
+---
+
 ## 2026-10-03 — Phase 5: Menu shell
 
 **Built**

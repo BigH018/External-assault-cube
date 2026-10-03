@@ -2,12 +2,26 @@
 
 from __future__ import annotations
 
-from actrainer.input.actions import ESP_TOGGLE, MENU_TOGGLE, PANIC, QUIT, freeze_action_id, set_action_id
-from actrainer.input.keys import VK_END, VK_INSERT
+import pytest
+
+from actrainer.game.player import read_player
+from actrainer.input.actions import (
+    AIMBOT_ACTIVATE,
+    ESP_TOGGLE,
+    MENU_TOGGLE,
+    PANIC,
+    QUIT,
+    BindMode,
+    freeze_action_id,
+    set_action_id,
+)
+from actrainer.input.keys import VK_END, VK_INSERT, VK_RBUTTON
 from actrainer.memory.process import AttachError
 from actrainer.app.controller import Controller
+from actrainer.maths.angles import calc_aim_angles
 from actrainer.settings.models import Settings
 from actrainer.settings.signals import AppSignals
+from helpers.fake_game import make_fake_game
 
 KEY_F7 = 0x76
 KEY_F8 = 0x77
@@ -146,3 +160,56 @@ def test_tick_rate_change_updates_timer(settings: Settings, signals: AppSignals)
 
 def test_panic_action_id_is_end_by_default(settings: Settings) -> None:
     assert settings.keybinds.binds[PANIC].key == VK_END
+
+
+# --- aimbot wiring (Phase 6) ---------------------------------------------------------------
+
+def make_attached(settings: Settings, signals: AppSignals, focused: bool = True):  # noqa: ANN201
+    # Local at (10, 20) looking along +x (yaw 90); one bot ahead and a bit to the side.
+    proc, local, bots = make_fake_game(local={"yaw": 90.0, "pitch": 0.0, "head": (10.0, 20.0, 5.5),
+                                              "feet": (10.0, 20.0, 1.0)},
+                                       bots=[{"name": b"Target", "head": (60.0, 25.0, 5.5), "feet": (60.0, 25.0, 1.0)}])
+    keys = Keys()
+    controller = Controller(settings, signals, process=proc, key_source=keys, clock=Clock(),  # type: ignore[arg-type]
+                            focus_check=lambda _hwnd: focused)
+    return controller, keys, proc, local
+
+
+def test_aimbot_snaps_when_enabled_key_held_and_focused(settings: Settings, signals: AppSignals) -> None:
+    settings.aimbot.enabled = True
+    settings.aimbot.smoothing = 1.0
+    controller, keys, proc, local = make_attached(settings, signals)
+    keys.down = {VK_RBUTTON}
+    controller.tick()
+    me = read_player(proc, local)
+    expected = calc_aim_angles(me.head, controller.state.entities[0].head)
+    assert (me.yaw, me.pitch) == pytest.approx(tuple(expected), abs=1e-3)
+    assert controller.aim_target_address == controller.state.entities[0].address
+
+
+@pytest.mark.parametrize("enabled, held, focused", [(False, True, True), (True, False, True), (True, True, False)])
+def test_aimbot_does_nothing_unless_all_conditions(settings: Settings, signals: AppSignals,
+                                                   enabled: bool, held: bool, focused: bool) -> None:
+    settings.aimbot.enabled = enabled
+    controller, keys, proc, _ = make_attached(settings, signals, focused=focused)
+    keys.down = {VK_RBUTTON} if held else set()
+    controller.tick()
+    assert proc.writes == []
+
+
+def test_aimbot_toggle_mode(settings: Settings, signals: AppSignals) -> None:
+    settings.aimbot.enabled = True
+    settings.keybinds.binds[AIMBOT_ACTIVATE].mode = BindMode.TOGGLE
+    controller, keys, proc, _ = make_attached(settings, signals)
+    keys.down = {VK_RBUTTON}
+    controller.tick()   # press: toggled on
+    keys.down = set()
+    proc.writes.clear()
+    controller.tick()   # released but still on
+    assert proc.writes
+
+
+def test_entity_count_in_status(settings: Settings, signals: AppSignals) -> None:
+    controller, _, _, _ = make_attached(settings, signals)
+    controller.tick()
+    assert controller.status().entity_count == 1 and controller.status().offsets_ok

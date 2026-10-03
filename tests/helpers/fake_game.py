@@ -38,14 +38,32 @@ def make_player_buffer(**overrides: object) -> bytes:
 
 
 class FakeProcess:
-    """Duck-typed stand-in for GameProcess backed by a dict of {address: bytes} regions."""
+    """Duck-typed stand-in for GameProcess backed by writable {address: bytearray} regions.
+
+    Behaves like an attached, alive process by default (attach/detach/is_alive/pid), so it can also
+    drive the controller in tests.
+    """
 
     def __init__(self, module_base: int = 0x00400000) -> None:
         self.module_base = module_base
-        self.regions: dict[int, bytes] = {}
+        self.regions: dict[int, bytearray] = {}
+        self.is_attached = True
+        self.pid = 4242
+        self.writes: list[tuple[int, bytes]] = []
 
+    # --- lifecycle (GameProcess API) ---
+    def attach(self) -> None:
+        self.is_attached = True
+
+    def detach(self) -> None:
+        self.is_attached = False
+
+    def is_alive(self) -> bool:
+        return self.is_attached
+
+    # --- memory ---
     def put(self, address: int, data: bytes) -> None:
-        self.regions[address] = data
+        self.regions[address] = bytearray(data)
 
     def put_u32(self, address: int, value: int) -> None:
         self.put(address, struct.pack("<I", value))
@@ -53,14 +71,49 @@ class FakeProcess:
     def put_i32(self, address: int, value: int) -> None:
         self.put(address, struct.pack("<i", value))
 
-    def read_bytes(self, address: int, size: int) -> bytes:
+    def _locate(self, address: int, size: int) -> tuple[bytearray, int]:
         for start, data in self.regions.items():
             if start <= address and address + size <= start + len(data):
-                return data[address - start:address - start + size]
-        raise MemoryAccessError(f"unmapped read at 0x{address:08X}")
+                return data, address - start
+        raise MemoryAccessError(f"unmapped access at 0x{address:08X}")
+
+    def read_bytes(self, address: int, size: int) -> bytes:
+        data, off = self._locate(address, size)
+        return bytes(data[off:off + size])
 
     def read_u32(self, address: int) -> int:
         return struct.unpack("<I", self.read_bytes(address, 4))[0]
 
     def read_i32(self, address: int) -> int:
         return struct.unpack("<i", self.read_bytes(address, 4))[0]
+
+    def read_f32(self, address: int) -> float:
+        return struct.unpack("<f", self.read_bytes(address, 4))[0]
+
+    def write_bytes(self, address: int, payload: bytes) -> None:
+        data, off = self._locate(address, len(payload))
+        data[off:off + len(payload)] = payload
+        self.writes.append((address, bytes(payload)))
+
+    def write_i32(self, address: int, value: int) -> None:
+        self.write_bytes(address, struct.pack("<i", value))
+
+
+def make_fake_game(local: dict[str, object] | None = None,
+                   bots: list[dict[str, object]] | None = None) -> tuple[FakeProcess, int, list[int]]:
+    """A fake process with a local player and bots wired up exactly like the real memory layout.
+
+    Returns (process, local_address, bot_addresses).
+    """
+    proc = FakeProcess()
+    local_addr = 0x009DD2C8
+    list_addr = 0x00A58AE8
+    bot_addrs = [0x18990000 + i * 0x1000 for i in range(len(bots or []))]
+    proc.put_u32(proc.module_base + offsets.LOCAL_PLAYER_PTR, local_addr)
+    proc.put_u32(proc.module_base + offsets.ENTITY_LIST_PTR, list_addr)
+    proc.put_i32(proc.module_base + offsets.PLAYER_COUNT, len(bot_addrs) + 1)
+    proc.put(list_addr, struct.pack(f"<{len(bot_addrs) + 1}I", 0, *bot_addrs))
+    proc.put(local_addr, make_player_buffer(**{"name": b"me", "team": 0, **(local or {})}))
+    for addr, bot in zip(bot_addrs, bots or []):
+        proc.put(addr, make_player_buffer(**bot))
+    return proc, local_addr, bot_addrs

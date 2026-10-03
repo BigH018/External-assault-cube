@@ -1,13 +1,15 @@
-"""Find and read the local player.
+"""Find and read the local player, and write its view angles.
 
-Phase 1 is read-only. View-angle writes come in Phase 6 and value writes in Phase 7.
+Value writes (health, ammo...) come in Phase 7.
 """
 
 from __future__ import annotations
 
 import logging
+import struct
 
 from actrainer import offsets
+from actrainer.maths.angles import Angles
 from actrainer.game.player import is_valid_local_player, is_valid_pointer, read_player
 from actrainer.game.structs import PlayerSnapshot
 from actrainer.memory.process import GameProcess
@@ -42,3 +44,18 @@ def read_local_player(proc: GameProcess) -> PlayerSnapshot | None:
         log.debug("local player at 0x%08X failed sanity check", address)
         return None
     return player
+
+
+# Yaw (0x34) and pitch (0x38) are adjacent floats, so both go in ONE 8-byte write. The game can then
+# never see a new yaw paired with an old pitch.
+_YAW_PITCH = struct.Struct("<2f")
+assert offsets.VIEW_PITCH == offsets.VIEW_YAW + 4, "yaw and pitch must be adjacent for the combined write"
+
+
+def write_view_angles(proc: GameProcess, player_address: int, angles: Angles) -> None:
+    """Point the local player's view at `angles` (AC degrees).
+
+    Raises:
+        MemoryAccessError: if the write fails.
+    """
+    proc.write_bytes(player_address + offsets.VIEW_YAW, _YAW_PITCH.pack(angles.yaw, angles.pitch))

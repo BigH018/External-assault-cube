@@ -3,8 +3,8 @@
 A QTimer fires at settings.general.tick_rate_hz. Each tick:
     1. poll keybinds (suspended while the menu captures a bind) and handle actions
     2. make sure we're attached (throttled retry; detach if the game died)
-    3. read the game state                          [Phase 6]
-    4. aimbot -> write view angles                 [Phase 6]
+    3. read the game state (local player + live bots)
+    4. aimbot -> write view angles (only while enabled, key active and the GAME window is focused)
     5. player values: set-now + freezes             [Phase 7]
     6. ESP -> draw primitives -> overlay repaint     [Phase 9]
     7. emit status to the menu (throttled)
@@ -21,8 +21,10 @@ from PyQt5.QtCore import QObject, QTimer
 
 from actrainer import config
 from actrainer.app.status import ControllerStatus
-from actrainer.game.entities import read_player_count
-from actrainer.game.local_player import read_local_player
+from actrainer.features import aimbot
+from actrainer.game.local_player import write_view_angles
+from actrainer.game.state import read_game_state
+from actrainer.game.structs import GameState
 from actrainer.input import actions
 from actrainer.input.keybinds import ActionStates, KeybindEngine
 from actrainer.input.keys import BINDABLE_VKS
@@ -41,18 +43,25 @@ def default_key_source() -> set[int]:
     return win32.get_pressed_keys(BINDABLE_VKS)
 
 
+def default_focus_check(game_hwnd: int | None) -> bool:
+    """True if the game window is the foreground window."""
+    return game_hwnd is not None and win32.get_foreground_window() == game_hwnd
+
+
 class Controller(QObject):
     """Owns the game connection and the tick timer. The UI never calls memory code; this does."""
 
     def __init__(self, settings: Settings, signals: AppSignals, process: GameProcess | None = None,
                  key_source: Callable[[], set[int]] = default_key_source,
-                 clock: Callable[[], float] = time.perf_counter) -> None:
+                 clock: Callable[[], float] = time.perf_counter,
+                 focus_check: Callable[[int | None], bool] = default_focus_check) -> None:
         super().__init__()
         self.settings = settings
         self.signals = signals
         self.process = process or GameProcess()
         self._key_source = key_source
         self._clock = clock
+        self._focus_check = focus_check
         self._engine = KeybindEngine()
         self._capturing = False
         self._game_hwnd: int | None = None
@@ -64,6 +73,9 @@ class Controller(QObject):
         self._tick_rate = 0.0
         self._offsets_ok = False
         self._entity_count = 0
+        self._game_focused = False
+        self.state: GameState | None = None   # latest snapshot (None = not in a match)
+        self.aim_target_address: int | None = None  # bot currently being aimed at (for ESP highlight later)
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.tick)
@@ -100,8 +112,11 @@ class Controller(QObject):
             self._measure_rate(now)
             states = self._engine.update(self._key_source(), self.settings.keybinds.binds, suspended=self._capturing)
             self._handle_actions(states)
+            self.aim_target_address = None
             if self._ensure_attached(now):
-                self._read_game()
+                self._game_focused = self._focus_check(self.game_hwnd)
+                if self._read_game():
+                    self._run_aimbot(states)
             if now >= self._next_status:
                 self._next_status = now + config.STATUS_INTERVAL_S
                 self.signals.status_changed.emit(self.status())
@@ -143,18 +158,37 @@ class Controller(QObject):
         self._game_hwnd = None
         self._offsets_ok = False
         self._entity_count = 0
+        self._game_focused = False
+        self.state = None
 
-    def _read_game(self) -> None:
-        """Phase 5: just enough to show status. Phase 6 replaces this with a full GameState read."""
+    def _read_game(self) -> bool:
+        """Read this tick's GameState into self.state. Returns True if we're in a match."""
         try:
-            self._offsets_ok = read_local_player(self.process) is not None
-            # Raw slot count minus the local player's slot (slot 0).
-            self._entity_count = max(0, read_player_count(self.process) - 1) if self._offsets_ok else 0
-            if self._game_hwnd is None:
-                self._game_hwnd = win32.find_main_window(self.process.pid)
+            self.state = read_game_state(self.process)
         except MemoryAccessError as exc:
             log.debug("read failed, skipping tick: %s", exc)
-            self._offsets_ok = False
+            self.state = None
+        self._offsets_ok = self.state is not None
+        self._entity_count = len(self.state.entities) if self.state else 0
+        if self._game_hwnd is None:
+            self._game_hwnd = win32.find_main_window(self.process.pid)
+        return self.state is not None
+
+    def _run_aimbot(self, states: ActionStates) -> None:
+        """Aim only when enabled, the activation key is active, and the game (not the menu) is focused."""
+        aim = self.settings.aimbot
+        if not (aim.enabled and states.is_active(actions.AIMBOT_ACTIVATE) and self._game_focused):
+            return
+        assert self.state is not None
+        result = aimbot.compute_aim(self.state.local, self.state.entities, aim)
+        if result is None:
+            return
+        angles, target = result
+        self.aim_target_address = target.player.address
+        try:
+            write_view_angles(self.process, self.state.local.address, angles)
+        except MemoryAccessError as exc:
+            log.debug("angle write failed: %s", exc)
 
     # --- actions ----------------------------------------------------------------------
 
@@ -226,5 +260,5 @@ class Controller(QObject):
             in_match=self._offsets_ok,
             entity_count=self._entity_count,
             tick_rate=self._tick_rate,
-            game_focused=hwnd is not None and win32.get_foreground_window() == hwnd,
+            game_focused=self._game_focused if hwnd is not None else False,
         )
