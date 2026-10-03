@@ -97,6 +97,8 @@ assault cube project/
     DEVLOG.md                   ✅ dated log of what was built, decisions and bugs fixed
     assets/logo-source.jpg      ✅ the user's original 1920 px logo artwork (source for all logo PNGs)
     assets/logo.png             ✅ README banner logo (256 px, smooth downscale of the source)
+    screenshots/                ✅ README screenshots: esp.jpg, esp-skeleton.jpg, menu-{aimbot,esp,player,keybinds,settings}.png,
+                                   colour-picker.png (regenerate with tools/readme_shots_*.py after UI changes)
   profiles/
     default.json                ✅ committed default profile = code defaults (test-enforced; all other profiles are git-ignored)
   tools/
@@ -106,6 +108,9 @@ assault cube project/
     phase3_angles_check.py      ✅ read-only: your view angles vs calc_aim_angles for the bot nearest your crosshair
     phase4_keybinds.py          ✅ live keybind engine with real keys (HOLD/TOGGLE/PRESS incl. mouse buttons)
     phase8_view_matrix.py       ✅ read-only: centre check (own view dir -> screen centre), matrix-derived hfov, nearest bot head/feet on screen
+    readme_shots_game.py        ✅ README images: grabs the game's client area + paints build_esp (2 variants) -> docs/screenshots/*.jpg
+    readme_shots_menu.py        ✅ README images: renders every page + colour picker offscreen (showcase profile in a temp dir, live
+                                   status from the game) -> docs/screenshots/*.png
   tests/
     conftest.py                 ✅ shared fixtures: offscreen QApplication (+ Windows fonts), settings, signals, tmp ProfileStore, ProfileSession
     helpers/__init__.py         ✅ makes shared helpers importable (pytest pythonpath = tests)
@@ -530,6 +535,9 @@ entities and invalid data without crashing.
   explicit `QGroupBox QPushButton` etc. rules, and `#primary`/`#danger` need card-scoped rules too (same for the colour popup).
 - **Taskbar icon:** without `win32.set_app_user_model_id(...)` (before any window), Windows groups the app under python.exe
   and shows Python's icon.
+- **README screenshots:** after any visible UI change, re-run `tools/readme_shots_menu.py` (offscreen, safe) and, with the game
+  visible on screen and in a match, `tools/readme_shots_game.py`. The menu script uses a temp showcase profile, so it never
+  touches the user's profiles.
 - **Logo assets:** regenerate `ui/assets/logo.png` and `docs/assets/logo.png` (256 px, `Qt.SmoothTransformation`) from
   `docs/assets/logo-source.jpg` if the artwork changes. Don't upscale the 32 px .ico: it goes blurry or blocky.
 - **pymem log noise:** pymem installs its own DEBUG handler on import. `memory/process.py` sets the `pymem` logger to WARNING.
@@ -599,6 +607,9 @@ entities and invalid data without crashing.
 - [x] **UI revamp (user request, 2026-10-03)** *(done; 316 tests; approved by the user)*: W Cheat - By BigH branding + logo (header
   top right, window/taskbar icon, README banner), sidebar navigation, page titles, ice-blue theme, toggle switches, chips,
   segmented controls, new colour picker popup with live preview.
+
+- [x] **README screenshots (user request, 2026-10-03)**: in-game ESP (2 styles) + all menu pages + colour picker, with
+  regeneration tools.
 
 **Next:** nothing planned. Wait for the user's next request. Possible future ideas (only if the user
 asks): target lock while holding the aim key, visibility check (needs a raycast or a visibility offset), game-mode offset

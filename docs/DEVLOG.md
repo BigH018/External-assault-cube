@@ -4,6 +4,18 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — README screenshots
+
+- `tools/readme_shots_game.py`: grabs the live game's client area from the screen and paints `build_esp(...)` on it with the
+  overlay's own painter (two style variants) → `docs/screenshots/esp.jpg`, `esp-skeleton.jpg` (1280x720 JPG, ~300 KB each).
+- `tools/readme_shots_menu.py`: renders all five pages + the colour picker offscreen, fed with live game status (bot count,
+  player values, FOV) and a temporary showcase profile (the user's profiles are untouched) → `docs/screenshots/*.png`.
+- The colour picker image is composited onto the ESP page where the real popup opens. The first attempt let it run off the
+  bottom of the window; it now flips above the chip, the same rule `ColourPopup.show_below` uses.
+- README: new Screenshots section (two full-width ESP shots + a 2x3 grid of menu pages).
+
+---
+
 ## 2026-10-03 — UI revamp: W Cheat - By BigH
 
 **User choices:** sidebar navigation · swatches + picker popup · logo in header (top right), window/taskbar icon and README

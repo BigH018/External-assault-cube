@@ -19,6 +19,36 @@ PyQt5 desktop app with a settings menu and a transparent overlay.
 > **Scope:** offline, single-player bot matches on my own PC only. No online use, no anti-cheat
 > bypasses or evasion, no injection or DLLs, no network code, no distribution.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/esp.jpg" width="100%" alt="ESP in-game: boxes, head circles, names, health bars, distance and the FOV circle">
+  <br><sub><b>ESP:</b> 2D boxes, head circles, names, health bars, distance and the aimbot FOV circle (bots seen through walls)</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/esp-skeleton.jpg" width="100%" alt="ESP in-game: corner boxes, skeletons and health numbers">
+  <br><sub><b>ESP:</b> corner boxes, approximate skeletons and health numbers in a custom colour</sub>
+</p>
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/menu-aimbot.png" alt="Aimbot page"><br><sub><b>Aimbot</b>: key and mode, targeting, FOV, smoothing</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/menu-esp.png" alt="ESP page"><br><sub><b>ESP</b>: styles, colours and info</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/menu-player.png" alt="Player page"><br><sub><b>Player</b>: game FOV, set/freeze values with live readouts</sub></td>
+    <td align="center"><img src="docs/screenshots/colour-picker.png" alt="Colour picker"><br><sub><b>Colour picker</b>: presets, custom colour, opacity, live preview</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/menu-keybinds.png" alt="Keybinds page"><br><sub><b>Keybinds</b>: every action, any key or mouse button</sub></td>
+    <td align="center"><img src="docs/screenshots/menu-settings.png" alt="Settings page"><br><sub><b>Settings</b>: profiles, performance, live status</sub></td>
+  </tr>
+</table>
+
+<sub>Screenshots are regenerated with <code>tools\readme_shots_game.py</code> and <code>tools\readme_shots_menu.py</code>.
+The ESP images are the game with the overlay's own drawing applied, captured with the same painter the overlay uses.</sub>
+
 ## Features
 - **Menu:** dark PyQt5 window with sidebar navigation, toggle switches and an ice-blue accent, toggled with **INSERT**.
   Every change applies live. Profiles use explicit Save.
@@ -100,6 +130,7 @@ Everything else is unbound by default. Bind what you like on the Keybinds tab.
 Small read-only scripts in `tools\`, one per build phase. Each prints live values from the game:
 `phase1_local_player.py`, `phase1_dead_diag.py`, `phase2_entities.py`, `phase3_angles_check.py`, `phase4_keybinds.py`,
 `phase8_view_matrix.py`.
+README screenshots: `readme_shots_game.py` (game + ESP) and `readme_shots_menu.py` (menu pages).
 
 ## Tests
 ```powershell
