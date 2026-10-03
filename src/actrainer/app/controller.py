@@ -5,7 +5,7 @@ A QTimer fires at settings.general.tick_rate_hz. Each tick:
     2. make sure we're attached (throttled retry; detach if the game died)
     3. read the game state (local player + live bots)
     4. aimbot -> write view angles (only while enabled, key active and the GAME window is focused)
-    5. player values: set-now + freezes             [Phase 7]
+    5. player values: pending set-now requests + freezes -> int writes (skipped while dead)
     6. ESP -> draw primitives -> overlay repaint     [Phase 9]
     7. emit status to the menu (throttled)
 Read errors are logged and the tick is skipped. Nothing here may crash the app.
@@ -21,8 +21,8 @@ from PyQt5.QtCore import QObject, QTimer
 
 from actrainer import config
 from actrainer.app.status import ControllerStatus
-from actrainer.features import aimbot
-from actrainer.game.local_player import write_view_angles
+from actrainer.features import aimbot, player_values
+from actrainer.game.local_player import VALUE_FIELD_OFFSETS, snapshot_value, write_player_value, write_view_angles
 from actrainer.game.state import read_game_state
 from actrainer.game.structs import GameState
 from actrainer.input import actions
@@ -76,6 +76,7 @@ class Controller(QObject):
         self._game_focused = False
         self.state: GameState | None = None   # latest snapshot (None = not in a match)
         self.aim_target_address: int | None = None  # bot currently being aimed at (for ESP highlight later)
+        self._pending_sets: list[str] = []          # value ids from "Set now" buttons/hotkeys, applied next tick
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.tick)
@@ -117,6 +118,8 @@ class Controller(QObject):
                 self._game_focused = self._focus_check(self.game_hwnd)
                 if self._read_game():
                     self._run_aimbot(states)
+                    self._apply_player_values()
+            self._drop_unapplied_sets()
             if now >= self._next_status:
                 self._next_status = now + config.STATUS_INTERVAL_S
                 self.signals.status_changed.emit(self.status())
@@ -173,6 +176,29 @@ class Controller(QObject):
         if self._game_hwnd is None:
             self._game_hwnd = win32.find_main_window(self.process.pid)
         return self.state is not None
+
+    def _apply_player_values(self) -> None:
+        """Write pending set-now values and frozen values (only fields that differ)."""
+        assert self.state is not None
+        local = self.state.local
+        requested, self._pending_sets = self._pending_sets, []
+        if requested and local.dead:
+            self.signals.notice.emit("You're dead: values not written (try again after respawning)")
+        for write in player_values.plan_writes(local, self.settings.player, requested):
+            try:
+                write_player_value(self.process, local.address, write.field, write.value)
+            except MemoryAccessError as exc:
+                log.debug("value write %s failed: %s", write.field, exc)
+                continue
+        if not local.dead:
+            for value_id in requested:
+                self.signals.notice.emit(player_values.describe(value_id, self.settings.player))
+
+    def _drop_unapplied_sets(self) -> None:
+        """Set-now requests that couldn't run this tick (not attached / not in a match) are dropped, with a notice."""
+        if self._pending_sets:
+            self._pending_sets = []
+            self.signals.notice.emit("Not in a match: nothing written")
 
     def _run_aimbot(self, states: ActionStates) -> None:
         """Aim only when enabled, the activation key is active, and the game (not the menu) is focused."""
@@ -241,7 +267,8 @@ class Controller(QObject):
         self._capturing = capturing
 
     def _on_set_value(self, value_id: str) -> None:
-        log.info("set-now requested for %s (writes arrive in Phase 7)", value_id)
+        if value_id not in self._pending_sets:
+            self._pending_sets.append(value_id)  # applied on the next tick, inside the normal read/write cycle
 
     def _apply_tick_rate(self) -> None:
         self._timer.setInterval(max(1, round(MS_PER_SECOND / self.settings.general.tick_rate_hz)))
@@ -261,4 +288,6 @@ class Controller(QObject):
             entity_count=self._entity_count,
             tick_rate=self._tick_rate,
             game_focused=self._game_focused if hwnd is not None else False,
+            player_values=({f: snapshot_value(self.state.local, f) for f in VALUE_FIELD_OFFSETS}
+                           if self.state else {}),
         )

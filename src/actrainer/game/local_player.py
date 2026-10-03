@@ -59,3 +59,47 @@ def write_view_angles(proc: GameProcess, player_address: int, angles: Angles) ->
         MemoryAccessError: if the write fails.
     """
     proc.write_bytes(player_address + offsets.VIEW_YAW, _YAW_PITCH.pack(angles.yaw, angles.pitch))
+
+
+# --- editable int fields --------------------------------------------------------------
+# Features name fields with plain ids ("health", "mag:pistol", "reserve:pistol"). Only this module
+# knows which offset each id lives at.
+
+def mag_field(weapon: str) -> str:
+    """Field id for a weapon's magazine ammo."""
+    return f"mag:{weapon}"
+
+
+def reserve_field(weapon: str) -> str:
+    """Field id for a weapon's reserve ammo."""
+    return f"reserve:{weapon}"
+
+
+VALUE_FIELD_OFFSETS: dict[str, int] = {
+    "health": offsets.HEALTH,
+    "armor": offsets.ARMOR,
+    "grenades": offsets.GRENADES,
+    "akimbo": offsets.AKIMBO_AMMO,
+    **{mag_field(w): off for w, off in offsets.MAG_AMMO.items()},
+    **{reserve_field(w): off for w, off in offsets.RESERVE_AMMO.items()},
+}
+
+
+def snapshot_value(player: PlayerSnapshot, field: str) -> int:
+    """The current value of an editable field, taken from an already-read snapshot (no memory access)."""
+    if field.startswith("mag:"):
+        return player.mag_ammo[field[len("mag:"):]]
+    if field.startswith("reserve:"):
+        return player.reserve_ammo[field[len("reserve:"):]]
+    return {"health": player.health, "armor": player.armor,
+            "grenades": player.grenades, "akimbo": player.akimbo_ammo}[field]
+
+
+def write_player_value(proc: GameProcess, player_address: int, field: str, value: int) -> None:
+    """Write one editable int field of the local player.
+
+    Raises:
+        KeyError: unknown field id.
+        MemoryAccessError: if the write fails.
+    """
+    proc.write_i32(player_address + VALUE_FIELD_OFFSETS[field], value)

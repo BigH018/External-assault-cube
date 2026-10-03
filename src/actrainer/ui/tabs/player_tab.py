@@ -7,14 +7,20 @@ edits settings and emits set_value_requested. The writes themselves happen in th
 
 from __future__ import annotations
 
+from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QCheckBox, QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from actrainer import config
+from actrainer.app.status import ControllerStatus
+from actrainer.game.local_player import mag_field, reserve_field
 from actrainer.input.actions import set_action_id
 from actrainer.settings.models import Settings
 from actrainer.settings.signals import AppSignals
 from actrainer.ui.binder import KeybindBinder, make_spinbox, set_quietly
 from actrainer.ui.layout import group, hint, scrollable
+
+NOTICE_CLEAR_MS = 4000
+NO_VALUE = "–"
 
 
 
@@ -25,20 +31,30 @@ class PlayerTab(QWidget):
         self._signals = signals
         self.keys = KeybindBinder(settings, signals)
         self._loaders: list = []
+        self._now_labels: dict[str, tuple[QLabel, list[str]]] = {}  # value id -> (label, field ids)
+
+        self.notice = QLabel()
+        self.notice.setObjectName("warning")
+        self._notice_timer = QTimer(self)
+        self._notice_timer.setSingleShot(True)
+        self._notice_timer.setInterval(NOTICE_CLEAR_MS)
+        self._notice_timer.timeout.connect(self.notice.clear)
+        signals.notice.connect(self.show_notice)
 
         stats, sg = group("Stats", grid=True)
-        self._header(sg, ["", "Target", "", "Key", ""])
+        self._header(sg, ["", "Target", "Now", "", "Key", ""])
         for r, stat in enumerate(config.STAT_VALUES, start=1):
             self._stat_row(sg, r, stat)
 
         ammo, ag = group("Ammo", grid=True)
-        self._header(ag, ["", "Magazine", "Reserve", "", "Key", ""])
+        self._header(ag, ["", "Magazine", "Reserve", "Now", "", "Key", ""])
         for r, weapon in enumerate(config.WEAPONS, start=1):
             self._weapon_row(ag, r, weapon)
 
         content = QVBoxLayout()
         content.addWidget(hint("Values are written only while attached and in a match. Freeze re-applies the value "
                                "every tick. More keys (freeze toggles) are on the Keybinds tab."))
+        content.addWidget(self.notice)
         content.addWidget(stats)
         content.addWidget(ammo)
         content.addStretch(1)
@@ -83,9 +99,10 @@ class PlayerTab(QWidget):
         self._loaders.append(lambda: set_quietly(spin, spin.setValue, setting().target))
         grid.addWidget(QLabel(config.VALUE_NAMES[stat]), r, 0)
         grid.addWidget(spin, r, 1)
-        grid.addWidget(self._set_now_button(stat), r, 2)
-        grid.addWidget(self.keys.button(set_action_id(stat)), r, 3)
-        grid.addWidget(self._freeze_box(setting), r, 4)
+        grid.addWidget(self._now_label(stat, [stat]), r, 2)
+        grid.addWidget(self._set_now_button(stat), r, 3)
+        grid.addWidget(self.keys.button(set_action_id(stat)), r, 4)
+        grid.addWidget(self._freeze_box(setting), r, 5)
 
     def _weapon_row(self, grid: QGridLayout, r: int, weapon: str) -> None:
         setting = lambda: self._settings.player.ammo[weapon]  # noqa: E731
@@ -105,9 +122,29 @@ class PlayerTab(QWidget):
         grid.addWidget(QLabel(config.VALUE_NAMES[weapon]), r, 0)
         grid.addWidget(mag, r, 1)
         grid.addWidget(reserve, r, 2)
-        grid.addWidget(self._set_now_button(weapon), r, 3)
-        grid.addWidget(self.keys.button(set_action_id(weapon)), r, 4)
-        grid.addWidget(self._freeze_box(setting), r, 5)
+        grid.addWidget(self._now_label(weapon, [mag_field(weapon), reserve_field(weapon)]), r, 3)
+        grid.addWidget(self._set_now_button(weapon), r, 4)
+        grid.addWidget(self.keys.button(set_action_id(weapon)), r, 5)
+        grid.addWidget(self._freeze_box(setting), r, 6)
+
+    def _now_label(self, value_id: str, fields: list[str]) -> QLabel:
+        label = QLabel(NO_VALUE)
+        label.setObjectName("value")
+        label.setToolTip("Current in-game value")
+        self._now_labels[value_id] = (label, fields)
+        return label
+
+    # --- live feedback ------------------------------------------------------------------
+
+    def show_status(self, status: ControllerStatus) -> None:
+        """Update the "Now" column from the controller's latest snapshot."""
+        for label, fields in self._now_labels.values():
+            values = [status.player_values.get(f) for f in fields]
+            label.setText(NO_VALUE if None in values else " / ".join(str(v) for v in values))
+
+    def show_notice(self, text: str) -> None:
+        self.notice.setText(text)
+        self._notice_timer.start()
 
     def load_from_settings(self) -> None:
         for loader in self._loaders:

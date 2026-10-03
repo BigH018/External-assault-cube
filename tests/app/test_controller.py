@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from actrainer import offsets
 from actrainer.game.player import read_player
 from actrainer.input.actions import (
     AIMBOT_ACTIVATE,
@@ -213,3 +214,89 @@ def test_entity_count_in_status(settings: Settings, signals: AppSignals) -> None
     controller, _, _, _ = make_attached(settings, signals)
     controller.tick()
     assert controller.status().entity_count == 1 and controller.status().offsets_ok
+
+
+# --- player values (Phase 7) ----------------------------------------------------------------
+
+def health_of(proc, address: int) -> int:  # noqa: ANN001
+    return read_player(proc, address).health
+
+
+def test_set_now_writes_once_and_notifies(settings: Settings, signals: AppSignals) -> None:
+    settings.player.values["health"].target = 999
+    controller, _, proc, local = make_attached(settings, signals)
+    notices: list[str] = []
+    signals.notice.connect(notices.append)
+    signals.set_value_requested.emit("health")
+    controller.tick()
+    assert health_of(proc, local) == 999
+    assert notices == ["Health set to 999"]
+    # Game changes it back (took damage): no freeze, so it stays changed.
+    proc.write_i32(local + offsets.HEALTH, 40)
+    controller.tick()
+    assert health_of(proc, local) == 40
+
+
+def test_freeze_reapplies_every_tick(settings: Settings, signals: AppSignals) -> None:
+    settings.player.values["health"].target = 500
+    settings.player.values["health"].freeze = True
+    controller, _, proc, local = make_attached(settings, signals)
+    controller.tick()
+    assert health_of(proc, local) == 500
+    proc.write_i32(local + offsets.HEALTH, 12)   # took damage
+    controller.tick()
+    assert health_of(proc, local) == 500
+    proc.writes.clear()
+    controller.tick()
+    assert proc.writes == []                      # already correct: no redundant write
+
+
+def test_weapon_set_now_writes_mag_and_reserve(settings: Settings, signals: AppSignals) -> None:
+    settings.player.ammo["assault"].mag = 33
+    settings.player.ammo["assault"].reserve = 444
+    controller, _, proc, local = make_attached(settings, signals)
+    signals.set_value_requested.emit("assault")
+    controller.tick()
+    me = read_player(proc, local)
+    assert (me.mag_ammo["assault"], me.reserve_ammo["assault"]) == (33, 444)
+
+
+def test_set_now_while_dead_is_refused(settings: Settings, signals: AppSignals) -> None:
+    controller, _, proc, local = make_attached(settings, signals)
+    proc.write_i32(local + offsets.DEAD, 1)
+    proc.writes.clear()
+    notices: list[str] = []
+    signals.notice.connect(notices.append)
+    signals.set_value_requested.emit("health")
+    controller.tick()
+    assert proc.writes == [] and "dead" in notices[0]
+
+
+def test_set_now_when_not_in_match_is_dropped(settings: Settings, signals: AppSignals) -> None:
+    controller, _ = make(settings, signals)  # NoGame: never attaches
+    notices: list[str] = []
+    signals.notice.connect(notices.append)
+    signals.set_value_requested.emit("health")
+    controller.tick()
+    controller.tick()
+    assert notices == ["Not in a match: nothing written"]  # once, not every tick
+
+
+def test_panic_stops_freezing(settings: Settings, signals: AppSignals) -> None:
+    settings.player.values["health"].target = 500
+    settings.player.values["health"].freeze = True
+    controller, keys, proc, local = make_attached(settings, signals)
+    controller.tick()
+    keys.down = {VK_END}
+    controller.tick()
+    keys.down = set()
+    proc.write_i32(local + offsets.HEALTH, 12)
+    controller.tick()
+    assert health_of(proc, local) == 12
+
+
+def test_status_carries_live_player_values(settings: Settings, signals: AppSignals) -> None:
+    controller, _, _, _ = make_attached(settings, signals)
+    controller.tick()
+    values = controller.status().player_values
+    assert values["health"] == 100 and values["mag:pistol"] == 10

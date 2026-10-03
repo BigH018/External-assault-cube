@@ -4,6 +4,25 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — Phase 7: Player values
+
+**Built**
+- `game/local_player.py`: field ids → offsets (`VALUE_FIELD_OFFSETS`, `mag_field`, `reserve_field`), `snapshot_value`,
+  `write_player_value`.
+- `features/player_values.py` (pure): clamped targets, `plan_writes` (queued set-now + freezes, only differing fields,
+  nothing while dead), `describe` for notices.
+- Controller: queued set-now requests (buttons and hotkeys), freeze each tick, notices ("Health set to 999", "You're dead…",
+  "Not in a match…"), live values in `ControllerStatus.player_values`.
+- Player tab: live "Now" column and a notice line that clears after 4 s.
+- Tests: player values feature + controller integration. **244 tests total, all passing.**
+
+**Verified**
+- Live values read from the running game (health 100, armour 50, assault 20/60, pistol 10/70). App run had no errors.
+- User tested in-game: live values, set-now, freeze, weapons, grenades/armour, hotkeys, dead handling, panic,
+  not-in-match notice. All working.
+
+---
+
 ## 2026-10-03 — Phase 6: Controller + aimbot
 
 **Built**

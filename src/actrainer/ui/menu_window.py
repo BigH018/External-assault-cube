@@ -103,6 +103,7 @@ class MenuWindow(QWidget):
         self.status_pill.setProperty("state", state)
         restyle(self.status_pill)
         self.settings_tab.show_status(status)
+        self.player_tab.show_status(status)
 
     # --- show / hide ---------------------------------------------------------------------
 

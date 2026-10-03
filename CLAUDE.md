@@ -120,9 +120,10 @@ assault cube project/
     ui/test_binder.py           ✅ controls write settings/emit, reload after replace_with, keybind binder
     ui/test_profile_session.py  ✅ dirty flag, save/save as/load/rename/reset on the shared Settings
     ui/test_menu_window.py      ✅ builds 5 tabs, title marker, cross-tab bind sync, conflict banner, refresh, status pill
-    app/test_controller.py      ✅ hotkeys, capture suspension, attach throttling, status, tick rate; aimbot only when enabled+key+focused, toggle mode
+    app/test_controller.py      ✅ hotkeys, capture suspension, attach throttling, status, tick rate; aimbot conditions + toggle;
+                                   set-now once + notice, freeze re-applies (no redundant writes), weapons, dead/not-in-match, panic, live values
     features/test_aimbot.py     ✅ aim point, FOV/dead/team/distance filters, priorities + tie-break, snap/smooth, body lower, dead local, 0/360
-    features/test_player_values.py 🔲 [7] set-now/freeze logic and value validation
+    features/test_player_values.py ✅ field map, clamped targets, only-changed writes, freezes, no dup, dead = no writes, describe
     features/test_esp.py        🔲 [9] draw-primitive generation
   src/actrainer/
     __init__.py                 ✅ package marker, __version__
@@ -132,15 +133,15 @@ assault cube project/
     offsets.py                  ✅ ALL offsets + GAME_VERSION + PLAYER_READ_SIZE: single source of truth
     app/
       __init__.py               ✅ package marker
-      status.py                 ✅ ControllerStatus (pure): attached, pid, base, exe version, offsets_ok, entities, tick rate, focus
+      status.py                 ✅ ControllerStatus (pure): attached, pid, base, exe version, offsets_ok, entities, tick rate, focus, player_values
       controller.py             ✅ QTimer tick: keybinds + actions, throttled attach + liveness, GameState read, aimbot (enabled+key+game focused)
-                                   -> write angles, status; 🔲 [7] values, [9] ESP/overlay
+                                   -> write angles, player values (pending set-now + freezes), notices, status (+ live values); 🔲 [9] ESP/overlay
     settings/
       __init__.py               ✅ package marker
       models.py                 ✅ Settings + sections, enums, ranged() field metadata, field_range, replace_with (pure)
       store.py                  ✅ to_dict/from_dict (forgiving, clamping, migrations) + ProfileStore (files, read-only default, last profile, startup)
       signals.py                ✅ AppSignals hub: settings_changed, refresh_requested, bind_capture_changed, set_value_requested,
-                                   menu_toggle_requested, quit_requested, status_changed
+                                   menu_toggle_requested, quit_requested, status_changed, notice
     memory/
       __init__.py               ✅ package marker (only package allowed to import pymem)
       process.py                ✅ GameProcess: attach/detach/is_alive, module base, typed u32/i32/f32 read/write; AttachError/MemoryAccessError
@@ -148,7 +149,8 @@ assault cube project/
       __init__.py               ✅ package marker
       structs.py                ✅ Vec3, PlayerSnapshot, GameState (frozen, pure data)
       player.py                 ✅ one-read player struct parsing (parse_player is pure) + local/bot validity checks
-      local_player.py           ✅ read local player, write_view_angles (one 8-byte yaw+pitch write); 🔲 [7] write player values
+      local_player.py           ✅ read local player, write_view_angles (one 8-byte yaw+pitch write), editable field ids -> offsets
+                                   (VALUE_FIELD_OFFSETS, mag_field/reserve_field), snapshot_value, write_player_value
       entities.py               ✅ read_player_count / read_entity_pointers (one read) / read_entities -> list[PlayerSnapshot]
       view.py                   🔲 [8] read view matrix + game FOV
       state.py                  ✅ read_game_state(): local player + live bots in one call (None outside a match); 🔲 [8] view matrix/FOV
@@ -163,7 +165,7 @@ assault cube project/
       primitives.py             🔲 [9] pure draw-primitive dataclasses (Line, Rect, Circle, Text)
       aimbot.py                 ✅ aim_point, find_candidates (filters), select_target (priority), compute_aim (smoothed angles + target)
       esp.py                    🔲 [9] settings + GameState -> list of draw primitives (no Qt)
-      player_values.py          🔲 [7] set-now and freeze logic
+      player_values.py          ✅ ValueWrite, target_writes (clamped), frozen_ids, plan_writes (requested + frozen, only changed, none while dead), describe
     input/
       __init__.py               ✅ package marker
       keys.py                   ✅ VK <-> names, BINDABLE_VKS, mouse buttons
@@ -182,7 +184,7 @@ assault cube project/
         __init__.py             ✅ package marker
         aimbot_tab.py           ✅ enable + key/mode, target, priority, max distance, team check, FOV + circle, smoothing
         esp_tab.py              ✅ enable + toggle key, enemies only, styles, thickness, colours, extras, snapline origin
-        player_tab.py           ✅ stats + per-weapon mag/reserve: target, Set now, key, Freeze
+        player_tab.py           ✅ stats + per-weapon mag/reserve: target, live "Now", Set now, key, Freeze; notice line
         keybinds_tab.py         ✅ every action by category (from registry), mode, conflict highlight + banner
         settings_tab.py         ✅ profiles, tick rate/overlay FPS, menu hotkey, reset, status panel
       widgets/
@@ -235,7 +237,10 @@ A `QTimer` fires at `settings.general.tick_rate_hz` (default 60 Hz). Each tick:
 4. **Aimbot**: only if `aimbot.enabled` AND the `aimbot` bind is active (HOLD held / TOGGLE on) AND the **game window is
    focused** (holding RMB over the menu never aims). `features/aimbot.compute_aim` picks a target and returns smoothed angles,
    then the controller writes them with `write_view_angles`. `controller.aim_target_address` remembers the target (for an ESP highlight later).
-5. **Player values**: `features/player_values` returns writes (set-now requests + freezes) → controller writes them.
+5. **Player values**: "Set now" (button or hotkey) emits `set_value_requested(id)`, and the controller queues it. Each tick
+   `features/player_values.plan_writes(local, settings.player, queued)` returns writes for queued + frozen values, only for fields
+   that differ and never while dead. The controller writes them (`write_player_value`) and emits a `notice`. Queued requests that
+   can't run (not attached / not in a match) are dropped with a notice.
 6. **ESP**: `features/esp` returns draw primitives → `overlay.set_primitives(...)` → `update()` (repaint).
 7. **Status**: emit attached/entity count/tick rate to the menu (throttled).
 
@@ -433,6 +438,10 @@ entities and invalid data without crashing.
   gives an empty name, `dead = 0` and ASCII file paths where ammo should be. Always use `LOCAL_PLAYER_PTR` (`0x18AC00`).
 - **AC's world is LEFT-handed** (renderer: "Z-up LH quake style"). The player's screen-right is `up × forward`;
   `forward × up` points LEFT. Caught by `test_up_is_up_and_right_is_right`.
+- **Field ids, not offsets, in features:** player values use ids (`health`, `mag:pistol`, `reserve:pistol`). Only
+  `game/local_player.py` maps them to offsets, so features never see memory layout.
+- **No value writes while dead:** writing health to a dead player can confuse the death state. Freezes resume on respawn;
+  set-now while dead is refused with a notice.
 - **Write yaw + pitch together:** they're adjacent floats (0x34/0x38). One 8-byte write means the game never sees a half-updated view.
 - **Aim origin is `local.head`** (the eye position), not the feet. Body aim = 60% of the feet->head height (scales when crouching).
 - **Aimbot needs the game focused:** otherwise holding RMB in the menu (or another app) would yank the view.
@@ -505,12 +514,12 @@ entities and invalid data without crashing.
 - [x] Phase 4: Settings + keybinds core + tests *(176 tests passing; awaiting user check of phase4_keybinds)*
 - [x] Phase 5: Menu shell (all tabs wired to settings, profiles, menu hotkey) *(done 2026-10-03; 205 tests; menu focus/mouse release verified in-game)*
 - [x] Phase 6: Controller + aimbot *(done 2026-10-03; 229 tests; verified in-game)*
-- [ ] Phase 7: Player values (set-now, freeze, keybinds)
+- [x] Phase 7: Player values (set-now, freeze, keybinds) *(done 2026-10-03; 244 tests; verified in-game)*
 - [ ] Phase 8: View matrix debug script
 - [ ] Phase 9: Overlay + ESP + FOV circle
 - [ ] Phase 10: Polish (panic, reattach, status, conflicts, error handling, docs)
 
-**Next:** Phase 7 (player values).
+**Next:** Phase 8 (view matrix debug).
 
 ---
 
@@ -577,6 +586,9 @@ entities and invalid data without crashing.
 - **2026-10-03:** Target priority ties are broken by angle to the crosshair (crosshair priority breaks ties by distance),
   so the pick is deterministic. No target locking yet: with crosshair priority the target stays the closest while you aim at it.
 - **2026-10-03:** `read_game_state` excludes dead bots (every feature ignores them). The view matrix and FOV join it in Phase 8.
+- **2026-10-03:** Player value writes are skipped while dead and only happen when the value differs (freeze is free when
+  already correct). Set-now is queued and applied inside the next tick's read/write cycle, never directly from the UI thread's click.
+- **2026-10-03:** Added `notice` signal + live "Now" column (via `ControllerStatus.player_values`) for feedback in the Player tab.
 - **2026-10-03:** Shared test fakes live in `tests/helpers/` (pytest `pythonpath = ["tests"]`). `FakeProcess` is
   duck-typed (read_bytes / read_u32 / read_i32 / module_base), so game-layer code is tested without the game.
 - **2026-10-03:** src layout (`src/actrainer`) + `pyproject.toml` editable install, so tools, tests and
