@@ -90,6 +90,9 @@ class FakeProcess:
     def read_f32(self, address: int) -> float:
         return struct.unpack("<f", self.read_bytes(address, 4))[0]
 
+    def read_f32_array(self, address: int, count: int) -> tuple[float, ...]:
+        return struct.unpack(f"<{count}f", self.read_bytes(address, count * 4))
+
     def write_bytes(self, address: int, payload: bytes) -> None:
         data, off = self._locate(address, len(payload))
         data[off:off + len(payload)] = payload
@@ -99,8 +102,14 @@ class FakeProcess:
         self.write_bytes(address, struct.pack("<i", value))
 
 
+IDENTITY_MATRIX = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+DEFAULT_FOV = 90.0
+
+
 def make_fake_game(local: dict[str, object] | None = None,
-                   bots: list[dict[str, object]] | None = None) -> tuple[FakeProcess, int, list[int]]:
+                   bots: list[dict[str, object]] | None = None,
+                   matrix: tuple[float, ...] = IDENTITY_MATRIX,
+                   fov: float = DEFAULT_FOV) -> tuple[FakeProcess, int, list[int]]:
     """A fake process with a local player and bots wired up exactly like the real memory layout.
 
     Returns (process, local_address, bot_addresses).
@@ -116,4 +125,6 @@ def make_fake_game(local: dict[str, object] | None = None,
     proc.put(local_addr, make_player_buffer(**{"name": b"me", "team": 0, **(local or {})}))
     for addr, bot in zip(bot_addrs, bots or []):
         proc.put(addr, make_player_buffer(**bot))
+    proc.put(proc.module_base + offsets.VIEW_MATRIX, struct.pack("<16f", *matrix))
+    proc.put(proc.module_base + offsets.VIEW_FOV, struct.pack("<f", fov))
     return proc, local_addr, bot_addrs

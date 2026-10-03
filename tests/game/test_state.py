@@ -35,3 +35,11 @@ def test_write_view_angles_is_one_8_byte_write() -> None:
     assert proc.writes == [(local + offsets.VIEW_YAW, struct.pack("<2f", 123.5, -12.25))]
     me = read_player(proc, local)
     assert (me.yaw, me.pitch) == pytest.approx((123.5, -12.25))
+
+
+def test_state_includes_view_matrix_and_fov() -> None:
+    matrix = tuple(float(i) for i in range(16))
+    proc, _, _ = make_fake_game(matrix=matrix, fov=100.0)
+    state = read_game_state(proc)
+    assert state is not None
+    assert state.view_matrix == matrix and state.fov == pytest.approx(100.0)

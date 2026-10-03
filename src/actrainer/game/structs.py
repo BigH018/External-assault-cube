@@ -46,5 +46,5 @@ class GameState:
 
     local: PlayerSnapshot
     entities: tuple[PlayerSnapshot, ...] = ()
-    view_matrix: tuple[float, ...] = ()   # 16 floats, OpenGL column-major (filled in Phase 8)
-    fov: float = 0.0                      # degrees
+    view_matrix: tuple[float, ...] = ()   # 16 floats, OpenGL column-major (projection x modelview)
+    fov: float = 0.0                      # HORIZONTAL field of view in degrees (verified from the matrix)

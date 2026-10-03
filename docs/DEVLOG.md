@@ -4,6 +4,24 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — Phase 8: View matrix
+
+**Built**
+- `game/view.py`: `read_view_matrix` (16 floats in place at base+0x17DFD0), `read_fov`, `horizontal_fov_from_matrix`,
+  `is_sane_matrix`. `GameState` now includes `view_matrix` and `fov`.
+- `tools/phase8_view_matrix.py`: centre check, matrix-derived hfov, nearest bot's head/feet in screen pixels.
+- Tests: view reads, hfov recovery (AC-style matrices + the live matrix row), state includes matrix/fov. **257 tests total.**
+
+**Verified against the running game (1920x1080, fov 90)**
+- Centre check: own-view point → (960.0, 540.0) exactly. **OK.**
+- Live matrix rows: |row0| = 1.000 (1/tan(45°)) and |row1| = 1.7777 (16:9). The game FOV is horizontal, so the Phase 3
+  assumption in `fov_circle_radius` holds.
+- Nearest bot (Captain_Shrimps): head (946.9, 453.5), feet (947.2, 575.8). Upright, about 122 px tall, near the crosshair.
+- User verified: centre check OK everywhere, head/feet near centre when aimed at, BEHIND when turned away, FOV changes tracked.
+- User request: game FOV slider. Planned for Phase 10.
+
+---
+
 ## 2026-10-03 — Phase 7: Player values
 
 **Built**

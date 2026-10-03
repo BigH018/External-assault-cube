@@ -100,14 +100,15 @@ assault cube project/
     phase2_entities.py          ✅ live table of every bot (name/hp/armor/team/head/distance/state) + raw slot list
     phase3_angles_check.py      ✅ read-only: your view angles vs calc_aim_angles for the bot nearest your crosshair
     phase4_keybinds.py          ✅ live keybind engine with real keys (HOLD/TOGGLE/PRESS incl. mouse buttons)
-    phase8_view_matrix.py       🔲 [8] prints one bot's screen coords to verify world_to_screen
+    phase8_view_matrix.py       ✅ read-only: centre check (own view dir -> screen centre), matrix-derived hfov, nearest bot head/feet on screen
   tests/
     conftest.py                 ✅ shared fixtures: offscreen QApplication, settings, signals, tmp ProfileStore, ProfileSession
     helpers/__init__.py         ✅ makes shared helpers importable (pytest pythonpath = tests)
     helpers/gl_matrix.py        ✅ pure-Python GL matrix maths + ac_view_projection() that mimics AC's transplayer()
-    helpers/fake_game.py        ✅ make_player_buffer(), FakeProcess (writable memory + attach/alive, records writes), make_fake_game()
+    helpers/fake_game.py        ✅ make_player_buffer(), FakeProcess (writable memory + attach/alive, records writes), make_fake_game() (+ matrix/fov)
     game/test_player.py         ✅ player struct parsing + local/bot validity checks
-    game/test_state.py          ✅ read_game_state (local + live bots, None without local), write_view_angles single 8-byte write
+    game/test_state.py          ✅ read_game_state (local + live bots + matrix + fov, None without local), write_view_angles single write
+    game/test_view.py           ✅ matrix read in place, FOV read, hfov recovered from AC-style + live matrices, sanity check
     game/test_entities.py       ✅ entity list: null/local/dead/garbage/unreadable skipping, bad count, uint32 pointers
     maths/test_vectors.py       ✅ vector helper tests
     maths/test_angles.py        ✅ aim angles (cardinal dirs, +90 offset, round trip), normalisation, shortest-path smoothing, FOV
@@ -152,8 +153,8 @@ assault cube project/
       local_player.py           ✅ read local player, write_view_angles (one 8-byte yaw+pitch write), editable field ids -> offsets
                                    (VALUE_FIELD_OFFSETS, mag_field/reserve_field), snapshot_value, write_player_value
       entities.py               ✅ read_player_count / read_entity_pointers (one read) / read_entities -> list[PlayerSnapshot]
-      view.py                   🔲 [8] read view matrix + game FOV
-      state.py                  ✅ read_game_state(): local player + live bots in one call (None outside a match); 🔲 [8] view matrix/FOV
+      view.py                   ✅ read_view_matrix (16 floats in place), read_fov, horizontal_fov_from_matrix, is_sane_matrix + game FOV
+      state.py                  ✅ read_game_state(): local player + live bots + view matrix + FOV (None outside a match)
     maths/
       __init__.py               ✅ package marker
       vectors.py                ✅ add/sub/scale/dot/cross/length/length_2d/distance/normalize/lerp, UP
@@ -446,7 +447,12 @@ entities and invalid data without crashing.
 - **Aim origin is `local.head`** (the eye position), not the feet. Body aim = 60% of the feet->head height (scales when crouching).
 - **Aimbot needs the game focused:** otherwise holding RMB in the menu (or another app) would yank the view.
 - **Smoothing depends on tick rate:** each tick moves 1/smoothing of the remaining angle, so a higher tick rate aims faster.
-- **FOV circle assumes the game FOV is horizontal** (AC derives fovy from fov and aspect). Confirm in Phase 9.
+- **`VIEW_FOV` is the HORIZONTAL fov (verified Phase 8):** live matrix row 0 has length 1.000 = 1/tan(90°/2) and row 1 has length
+  1.7777 = 16:9. So `fov_circle_radius(aim_fov, state.fov, width)` is correct as written.
+- **View matrix verified in-game (Phase 8):** a point 50 u along your own view direction projects to exactly (960.0, 540.0) on a
+  1920x1080 client area. Offset, in-place read, column-major layout and yaw/pitch convention all agree. Re-run
+  `tools/phase8_view_matrix.py` after any game update. A "MISMATCH" means the matrix offset moved.
+- **The matrix can be all zeros** before the first frame renders. Check `is_sane_matrix` before projecting.
 - **Health goes negative on death** (e.g. -54). Use `dead` (`0x318`) for alive/dead, never `health > 0`.
 - **Finding offsets by diffing:** take struct snapshots in state A / B / A again (`tools/phase1_dead_diag.py`).
   Values equal in both A snapshots but different in B are "STRONG" candidates. This filters out timers and movement noise.
@@ -515,11 +521,13 @@ entities and invalid data without crashing.
 - [x] Phase 5: Menu shell (all tabs wired to settings, profiles, menu hotkey) *(done 2026-10-03; 205 tests; menu focus/mouse release verified in-game)*
 - [x] Phase 6: Controller + aimbot *(done 2026-10-03; 229 tests; verified in-game)*
 - [x] Phase 7: Player values (set-now, freeze, keybinds) *(done 2026-10-03; 244 tests; verified in-game)*
-- [ ] Phase 8: View matrix debug script
+- [x] Phase 8: View matrix debug script *(done 2026-10-03; 257 tests; verified in-game)*
 - [ ] Phase 9: Overlay + ESP + FOV circle
 - [ ] Phase 10: Polish (panic, reattach, status, conflicts, error handling, docs)
+  - [ ] **User request (2026-10-03): game FOV slider**: write the game's own FOV (`VIEW_FOV`, what `/fov` changes) with
+    set-now + keep-applied. Verify in-game which range the game accepts before choosing limits.
 
-**Next:** Phase 8 (view matrix debug).
+**Next:** Phase 9 (overlay + ESP).
 
 ---
 
@@ -589,6 +597,9 @@ entities and invalid data without crashing.
 - **2026-10-03:** Player value writes are skipped while dead and only happen when the value differs (freeze is free when
   already correct). Set-now is queued and applied inside the next tick's read/write cycle, never directly from the UI thread's click.
 - **2026-10-03:** Added `notice` signal + live "Now" column (via `ControllerStatus.player_values`) for feedback in the Player tab.
+- **2026-10-03:** Phase 8 verification is mostly automatic: projecting a point along our own view direction must hit the exact
+  screen centre. That checks the matrix against the angle convention with no human judgement needed. The game FOV is horizontal
+  (derived from the matrix). `GameState` now carries `view_matrix` and `fov`.
 - **2026-10-03:** Shared test fakes live in `tests/helpers/` (pytest `pythonpath = ["tests"]`). `FakeProcess` is
   duck-typed (read_bytes / read_u32 / read_i32 / module_base), so game-layer code is tested without the game.
 - **2026-10-03:** src layout (`src/actrainer`) + `pyproject.toml` editable install, so tools, tests and
