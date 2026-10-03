@@ -14,7 +14,9 @@ from collections.abc import Callable
 from enum import Enum
 from typing import Any
 
-from PyQt5.QtWidgets import QCheckBox, QComboBox, QSpinBox, QWidget
+from PyQt5.QtCore import Qt
+
+from PyQt5.QtWidgets import QComboBox, QPushButton, QSpinBox, QWidget
 
 from actrainer.input.actions import ACTIONS_BY_ID, Bind, BindMode
 from actrainer.settings.models import Settings, field_range
@@ -22,6 +24,8 @@ from actrainer.settings.signals import AppSignals
 from actrainer.ui.widgets.colour_button import ColourButton
 from actrainer.ui.widgets.keybind_button import KeybindButton
 from actrainer.ui.widgets.labelled_slider import LabelledSlider
+from actrainer.ui.widgets.segmented import SegmentedControl
+from actrainer.ui.widgets.toggle_switch import ToggleRow
 
 
 class SettingBinder:
@@ -58,19 +62,50 @@ class SettingBinder:
 
     # --- controls -------------------------------------------------------------------------
 
-    def checkbox(self, field: str, text: str, tooltip: str = "") -> QCheckBox:
-        box = QCheckBox(text)
-        box.setToolTip(tooltip)
+    def toggle(self, field: str, text: str, description: str = "", tooltip: str = "") -> ToggleRow:
+        """A full-width row: label (+ optional description) on the left, on/off switch on the right."""
+        row = ToggleRow(text, description)
+        row.setToolTip(tooltip)
+        switch = row.switch
 
         def load() -> None:
-            box.blockSignals(True)
-            box.setChecked(bool(self.get(field)))
-            box.blockSignals(False)
+            switch.blockSignals(True)
+            switch.setChecked(bool(self.get(field)))
+            switch.blockSignals(False)
 
-        box.toggled.connect(lambda checked: self.set(field, checked))
+        switch.toggled.connect(lambda checked: self.set(field, checked))
         self._loaders.append(load)
         load()
-        return box
+        return row
+
+    def chip(self, field: str, text: str, tooltip: str = "") -> QPushButton:
+        """A pill-shaped on/off button, for groups of independent options (e.g. ESP styles)."""
+        chip = QPushButton(text)
+        chip.setObjectName("chip")
+        chip.setCheckable(True)
+        chip.setCursor(Qt.PointingHandCursor)
+        chip.setToolTip(tooltip)
+
+        def load() -> None:
+            set_quietly(chip, chip.setChecked, bool(self.get(field)))
+
+        chip.toggled.connect(lambda checked: self.set(field, checked))
+        self._loaders.append(load)
+        load()
+        return chip
+
+    def segmented(self, field: str, labels: dict[Enum, str]) -> SegmentedControl:
+        """Joined buttons for an enum field; exactly one is selected."""
+        members = list(labels)
+        control = SegmentedControl([labels[m] for m in members])
+
+        def load() -> None:
+            control.setCurrentIndex(members.index(self.get(field)))
+
+        control.currentIndexChanged.connect(lambda i: self.set(field, members[i]))
+        self._loaders.append(load)
+        load()
+        return control
 
     def slider(self, field: str, text: str, decimals: int = 0, suffix: str = "") -> LabelledSlider:
         """Slider whose range comes from the field's metadata (config.py)."""
@@ -162,6 +197,20 @@ class KeybindBinder:
         self._loaders.append(load)
         load()
         return combo
+
+    def mode_segmented(self, action_id: str) -> SegmentedControl:
+        """Mode as joined buttons (e.g. Hold | Toggle) for actions that allow several modes."""
+        allowed = list(ACTIONS_BY_ID[action_id].allowed_modes)
+        control = SegmentedControl([MODE_LABELS[m] for m in allowed])
+
+        def changed(index: int) -> None:
+            self.bind(action_id).mode = allowed[index]
+            self._signals.settings_changed.emit("keybinds")
+
+        control.currentIndexChanged.connect(changed)
+        self._loaders.append(lambda: control.setCurrentIndex(allowed.index(self.bind(action_id).mode)))
+        control.setCurrentIndex(allowed.index(self.bind(action_id).mode))
+        return control
 
     def load(self) -> None:
         for loader in self._loaders:

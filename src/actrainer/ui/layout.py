@@ -1,4 +1,4 @@
-"""Small layout helpers shared by the tabs (group boxes, rows, hint text)."""
+"""Small layout helpers shared by the pages (cards, rows, labelled rows, hint text)."""
 
 from __future__ import annotations
 
@@ -7,8 +7,6 @@ from PyQt5.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLayout,
-    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -40,7 +38,10 @@ def row(*widgets: QWidget | None, stretch_last: bool = False) -> QWidget:
     return container
 
 
-def labelled(text: str, widget: QWidget, label_width: int = 110) -> QWidget:
+LABEL_WIDTH = 120
+
+
+def labelled(text: str, widget: QWidget, label_width: int = LABEL_WIDTH) -> QWidget:
     """[label] [widget] on one line, label at a fixed width so rows line up."""
     label = QLabel(text)
     label.setMinimumWidth(label_width)
@@ -53,17 +54,3 @@ def hint(text: str) -> QLabel:
     label.setObjectName("dim")
     label.setWordWrap(True)
     return label
-
-
-def scrollable(content: QLayout) -> QWidget:
-    """Wrap a layout in a vertical scroll area (for tabs that can outgrow the window)."""
-    inner = QWidget()
-    inner.setLayout(content)
-    area = QScrollArea()
-    area.setWidgetResizable(True)
-    area.setWidget(inner)
-    outer = QWidget()
-    outer_layout = QVBoxLayout(outer)
-    outer_layout.setContentsMargins(0, 0, 0, 0)
-    outer_layout.addWidget(area)
-    return outer

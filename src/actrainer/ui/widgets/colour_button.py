@@ -1,29 +1,21 @@
-"""Button showing a colour swatch. Clicking opens a colour picker with alpha.
+"""Colour chip: a swatch (over a checkerboard) plus '#RRGGBB · 100%'. Click it to open the colour picker popup.
 
-Colours are exchanged as "#RRGGBBAA" strings (the settings format). Note Qt's own hex format with
-alpha is "#AARRGGBB", so we convert explicitly.
+Changes apply live while the popup is open (colourChanged is emitted on every preview), and Cancel
+restores the original colour, so you can see a new ESP colour on real bots before deciding.
 """
 
 from __future__ import annotations
 
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QColorDialog, QPushButton, QWidget
+from PyQt5.QtCore import QRectF, Qt, pyqtSignal
+from PyQt5.QtGui import QColor, QPainter, QPaintEvent, QPainterPath, QPen
+from PyQt5.QtWidgets import QPushButton, QWidget
 
 from actrainer.ui import theme
+from actrainer.ui.widgets.colour_picker import ColourPopup, describe, paint_checker, to_qcolor
 
-SWATCH_SIZE = (44, 22)
-
-
-def to_qcolor(rgba: str) -> QColor:
-    """'#RRGGBBAA' -> QColor."""
-    r, g, b, a = (int(rgba[i:i + 2], 16) for i in (1, 3, 5, 7))
-    return QColor(r, g, b, a)
-
-
-def from_qcolor(colour: QColor) -> str:
-    """QColor -> '#RRGGBBAA'."""
-    return f"#{colour.red():02X}{colour.green():02X}{colour.blue():02X}{colour.alpha():02X}"
+SWATCH_SIZE = 18
+SWATCH_LEFT = 10
+CHIP_MIN_WIDTH = 150
 
 
 class ColourButton(QPushButton):
@@ -31,11 +23,14 @@ class ColourButton(QPushButton):
 
     def __init__(self, rgba: str = "#FFFFFFFF", parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setFixedSize(*SWATCH_SIZE)
-        self.setToolTip("Click to choose a colour (with transparency)")
+        self.setObjectName("colourChip")
+        self.setMinimumWidth(CHIP_MIN_WIDTH)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip("Click to choose a colour (presets, custom colour, opacity)")
         self._rgba = rgba
-        self._paint()
-        self.clicked.connect(self._pick)
+        self.popup: ColourPopup | None = None
+        self._refresh()
+        self.clicked.connect(self.open_picker)
 
     def colour(self) -> str:
         return self._rgba
@@ -43,18 +38,37 @@ class ColourButton(QPushButton):
     def setColour(self, rgba: str) -> None:  # noqa: N802 (Qt naming)
         """Set the colour without emitting colourChanged."""
         self._rgba = rgba
-        self._paint()
+        self._refresh()
 
-    def _pick(self) -> None:
-        chosen = QColorDialog.getColor(to_qcolor(self._rgba), self, "Choose colour",
-                                       QColorDialog.ShowAlphaChannel)
-        if chosen.isValid():
-            self._rgba = from_qcolor(chosen)
-            self._paint()
-            self.colourChanged.emit(self._rgba)
+    def open_picker(self) -> None:
+        original = self._rgba
+        self.popup = ColourPopup(original, self)
+        self.popup.colourPreview.connect(self._preview)
+        self.popup.cancelled.connect(lambda: self._preview(original))
+        self.popup.show_below(self)
 
-    def _paint(self) -> None:
-        c = to_qcolor(self._rgba)
-        # The swatch is the one place a colour comes from data, not the theme.
-        self.setStyleSheet(f"background: rgba({c.red()},{c.green()},{c.blue()},{c.alpha()});"
-                           f"border: 1px solid {theme.TEXT_DIM}; border-radius: 4px;")
+    def _preview(self, rgba: str) -> None:
+        if rgba != self._rgba:
+            self._rgba = rgba
+            self._refresh()
+            self.colourChanged.emit(rgba)
+
+    def _refresh(self) -> None:
+        self.setText(describe(self._rgba))
+        self.update()
+
+    def paintEvent(self, e: QPaintEvent) -> None:  # noqa: N802
+        super().paintEvent(e)  # background, border and text (text is padded right of the swatch)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        rect = QRectF(SWATCH_LEFT, (self.height() - SWATCH_SIZE) / 2, SWATCH_SIZE, SWATCH_SIZE)
+        clip = QPainterPath()
+        clip.addRoundedRect(rect, 4, 4)
+        p.setClipPath(clip)
+        paint_checker(p, rect)
+        p.fillRect(rect, to_qcolor(self._rgba))
+        p.setClipping(False)
+        p.setPen(QPen(QColor(theme.TEXT_DIM), 1))
+        p.setBrush(Qt.NoBrush)
+        p.drawRoundedRect(rect, 4, 4)
+        p.end()

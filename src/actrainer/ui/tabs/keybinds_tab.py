@@ -13,7 +13,10 @@ from actrainer.input.keys import key_name
 from actrainer.settings.models import Settings
 from actrainer.settings.signals import AppSignals
 from actrainer.ui.binder import KeybindBinder
-from actrainer.ui.layout import group, hint, scrollable
+from actrainer.ui.layout import group, hint
+
+TITLE = "Keybinds"
+SUBTITLE = "Every action you can put on a key or mouse button. Keys work while the game is focused."
 
 WARNING_ICON = "⚠"
 MODE_COLUMN_WIDTH = 90
@@ -31,9 +34,10 @@ class KeybindsTab(QWidget):
         self._banner.setObjectName("warning")
         self._banner.setWordWrap(True)
 
-        content = QVBoxLayout()
-        content.addWidget(hint("Click a key button, then press any key or mouse button. Esc clears the bind. "
-                               "Keybinds work while the game is focused."))
+        content = QVBoxLayout(self)
+        content.setContentsMargins(0, 0, 0, 0)
+        content.setSpacing(12)
+        content.addWidget(hint("Click a key button, then press any key or mouse button. Esc clears the bind."))
         content.addWidget(self._banner)
 
         categories: dict[str, list] = {}
@@ -55,10 +59,6 @@ class KeybindsTab(QWidget):
             grid.setColumnStretch(0, 1)
             content.addWidget(box)
         content.addStretch(1)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(scrollable(content))
         self._update_conflicts()
 
     def load_from_settings(self) -> None:

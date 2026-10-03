@@ -71,6 +71,7 @@ def main() -> int:
     # Must happen before QApplication exists, or the overlay will be offset on scaled displays.
     if not win32.set_dpi_aware():
         log.warning("could not enable DPI awareness; overlay may be offset on scaled displays")
+    win32.set_app_user_model_id(config.APP_USER_MODEL_ID)
 
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)  # hiding the menu must not quit
@@ -78,12 +79,12 @@ def main() -> int:
 
     lock = acquire_single_instance_lock()
     if lock is None:
-        log.error("another AC Trainer is already running")
-        QMessageBox.warning(None, config.MENU_TITLE, "AC Trainer is already running.\n"
+        log.error("another copy is already running")
+        QMessageBox.warning(None, config.MENU_TITLE, f"{config.APP_NAME} is already running.\n"
                             "Use its menu hotkey (default INSERT) or close it first.")
         return 1
     add_file_logging()
-    log.info("AC Trainer %s running (offline bot matches only)", __version__)
+    log.info("%s %s running (offline bot matches only)", config.MENU_TITLE, __version__)
 
     store = ProfileStore()
     profile_name, settings = store.load_startup()

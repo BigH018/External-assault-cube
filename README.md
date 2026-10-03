@@ -1,4 +1,16 @@
-# AssaultCube Learning Trainer
+<p align="center">
+  <img src="docs/assets/logo.png" width="160" alt="W Cheat logo">
+</p>
+
+<h1 align="center">W Cheat</h1>
+
+<p align="center">
+  <b>By BigH</b><br>
+  External trainer for AssaultCube 1.3.0.2, written in Python<br>
+  <sub>Personal learning project · offline bot matches only</sub>
+</p>
+
+---
 
 A personal learning project: an external trainer for **AssaultCube 1.3.0.2**, written in Python.
 It covers process memory, pointer chains, vector maths, world-to-screen projection, and building a
@@ -8,11 +20,13 @@ PyQt5 desktop app with a settings menu and a transparent overlay.
 > bypasses or evasion, no injection or DLLs, no network code, no distribution.
 
 ## Features
-- **Menu:** dark-themed PyQt5 window, toggled with **INSERT**. Every change applies live. Profiles use explicit Save.
+- **Menu:** dark PyQt5 window with sidebar navigation, toggle switches and an ice-blue accent, toggled with **INSERT**.
+  Every change applies live. Profiles use explicit Save.
 - **Aimbot:** hold/toggle key, head/body, priority (crosshair / distance / lowest health), FOV radius + circle,
   smoothing, team check, max distance. Only aims while the game window is focused.
 - **ESP overlay:** 2D box, corner box, head circle, approximate skeleton (combinable); name, health bar, health number,
-  distance, snaplines; team mode; colours and line thickness. Transparent and click-through.
+  distance, snaplines; team mode; colours (picker with presets, custom colour, opacity, live preview) and line
+  thickness. Transparent and click-through.
 - **Player values:** health, armour, grenades, akimbo, and magazine/reserve ammo per weapon. Each has Set now, Freeze
   and an optional hotkey, plus a live in-game readout.
 - **Game FOV:** change the game's own field of view (30–150°), set once or keep applied.
@@ -32,19 +46,30 @@ python -m pip install -e .
 ## Run
 1. Start AssaultCube and begin an **offline bot match**.
 2. Run `python -m actrainer`. The menu opens, and the header shows **● Attached · N bots · 60 Hz**.
+   Pick a section in the left sidebar.
 3. Press **INSERT** to hide or show the menu at any time, including from inside the game.
 
 The trainer can be started before the game. It attaches automatically within about a second of the game starting, and
 reattaches if the game is restarted. Logs go to the console and to `logs\actrainer.log`.
 
 ## Using the menu
-| Tab | What's there |
+| Page | What's there |
 |---|---|
 | **Aimbot** | Enable, activation key and mode (default: hold **right mouse button**), aim at head/body, priority, max distance, team check (leave off in free-for-all), FOV radius + "draw FOV circle", smoothing (1 = instant snap) |
-| **ESP** | Enable, toggle key, team mode (off for free-for-all), enemies only, styles, line thickness, enemy/team colours, extras, snapline origin |
+| **ESP** | Enable, toggle key, team mode (off for free-for-all), enemies only, styles (click the chips to combine), line thickness, enemy/team colours, info extras, snapline origin |
 | **Player** | Game FOV (slider, Set now, Keep applied); stats and ammo, each with target, live "Now" value, Set now, key and Freeze |
-| **Keybinds** | Every bindable action. Click a key button, then press any key or mouse button; **Esc** clears. Conflicts show in red, and the tab title gets a ⚠ |
+| **Keybinds** | Every bindable action. Click a key button, then press any key or mouse button; **Esc** clears. Conflicts show in red, and the sidebar entry gets a ⚠ |
 | **Settings** | Profiles (Save / Save as / Load / Rename / Delete), Reset to defaults, tick rate, overlay FPS, menu hotkey, status panel |
+
+### Choosing colours
+Click any colour chip (e.g. **#FF4040 · 100%**) to open the picker:
+- **Presets:** one click; your current opacity is kept.
+- **Colour square + hue bar:** for any custom colour.
+- **Opacity:** slider in %. The swatches sit on a checkerboard so you can see transparency.
+- **Hex:** type `#RRGGBB` or `#RRGGBBAA`.
+
+The colour applies **live** while the picker is open, so you can judge it on real bots. **Apply** (or clicking outside)
+keeps it; **Cancel** or **Esc** puts the old colour back. Click **Old** to jump back to the original.
 
 ### Default hotkeys
 | Key | Action |
@@ -68,7 +93,7 @@ Everything else is unbound by default. Bind what you like on the Keybinds tab.
 | Menu not clickable when it pops up | Press Esc in-game to free the cursor, then INSERT again. |
 | No overlay | Run the game windowed or borderless, enable ESP, and keep the game (or the menu) focused. |
 | ESP boxes offset | Check Windows display scaling isn't overriding DPI for Python. Run `python tools\phase8_view_matrix.py`: it should say `OK`. |
-| "AC Trainer is already running" | Another copy is open. Use INSERT to find its menu, or quit it. |
+| "W Cheat is already running" | Another copy is open. Use INSERT to find its menu, or quit it. |
 | After a game update | Run `tools\phase1_local_player.py`, `phase2_entities.py` and `phase8_view_matrix.py` to check the offsets still work. |
 
 ## Debug tools
@@ -80,7 +105,7 @@ Small read-only scripts in `tools\`, one per build phase. Each prints live value
 ```powershell
 python -m pytest
 ```
-296 tests cover the maths, settings/profiles, keybinds, aimbot, ESP, player values, controller and UI. They need no game
+316 tests cover the maths, settings/profiles, keybinds, aimbot, ESP, player values, controller and UI. They need no game
 and open no windows.
 
 ## Project docs

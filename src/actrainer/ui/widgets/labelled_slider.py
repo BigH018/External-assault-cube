@@ -5,7 +5,7 @@ from __future__ import annotations
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QSlider, QWidget
 
-LABEL_MIN_WIDTH = 110
+LABEL_MIN_WIDTH = 120  # matches ui.layout.LABEL_WIDTH so rows line up
 
 
 class LabelledSlider(QWidget):

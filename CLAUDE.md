@@ -10,6 +10,8 @@ This file is the project's memory. A fresh session must be able to work from thi
 A personal **learning project**: an external trainer for **AssaultCube 1.3.0.2 (Lockdown Edition)**,
 written in Python. It has a PyQt5 menu, a customisable aimbot, an ESP overlay, player value editing,
 a game FOV changer and a keybind system. **All 10 build phases are complete (2026-10-03).**
+Display name / branding: **W Cheat - By BigH** (the user's logo: `docs/assets/logo-source.jpg`, used via `ui/assets/logo.png`). The Python
+package stays `actrainer`.
 
 AssaultCube is a free, open-source FPS that runs offline against bots and has no anti-cheat. That makes
 it the standard beginner target for learning about process memory, pointer chains, vector maths,
@@ -93,6 +95,8 @@ assault cube project/
   pyproject.toml                ✅ package metadata (src layout, editable install) + pytest config (importlib mode, pythonpath=tests)
   docs/
     DEVLOG.md                   ✅ dated log of what was built, decisions and bugs fixed
+    assets/logo-source.jpg      ✅ the user's original 1920 px logo artwork (source for all logo PNGs)
+    assets/logo.png             ✅ README banner logo (256 px, smooth downscale of the source)
   profiles/
     default.json                ✅ committed default profile = code defaults (test-enforced; all other profiles are git-ignored)
   tools/
@@ -119,10 +123,13 @@ assault cube project/
     settings/test_store.py      ✅ round-trip, forgiving load, clamping, keybind names/modes, migration, files, startup, default.json sync
     input/test_keys.py          ✅ name round-trip, unknown/unbound, Escape + generic modifiers not bindable
     input/test_keybinds.py      ✅ hold/toggle/press, suspension, reset, conflicts, action registry
-    ui/test_binder.py           ✅ controls write settings/emit, reload after replace_with, keybind binder
+    ui/test_binder.py           ✅ toggle/chip/segmented/slider/combo write settings + emit, reload after replace_with, keybind binder
     ui/test_profile_session.py  ✅ dirty flag, save/save as/load/rename/reset on the shared Settings
     ui/test_overlay.py          ✅ painter renders each primitive to the right pixels; window follows frames; repaint rate
-    ui/test_menu_window.py      ✅ builds 5 tabs, title marker, cross-tab bind sync, conflict banner + tab badge, refresh, status pill, FOV readout
+    ui/test_menu_window.py      ✅ 5 pages + branding/logo, sidebar navigation, title marker, cross-page bind sync, conflict banner +
+                                   sidebar badge, hotkey hint, refresh, status pill, FOV readout
+    ui/test_widgets.py          ✅ toggle switch/row, segmented control, colour helpers, picker (presets keep opacity, slider, hex),
+                                   colour chip live preview + cancel restores + apply keeps
     app/test_controller.py      ✅ hotkeys, capture suspension, attach throttling, status, tick rate; aimbot conditions + toggle;
                                    player values; overlay frames (game/menu focus, hide once, nothing to draw); game FOV set/keep/restore
     app/test_main.py            ✅ single-instance lock, unhandled exceptions logged instead of fatal
@@ -136,7 +143,8 @@ assault cube project/
     __main__.py                 ✅ lets `python -m actrainer` call main.main()
     main.py                     ✅ entry point: console logging + excepthook, DPI awareness, QApplication, single-instance lock, file
                                    logging, load profile (+ warnings dialog), wire signals/session/controller/menu/overlay, quit
-    config.py                   ✅ non-offset constants: paths, logs, lock file, controller timing, menu size, sanity limits,
+    config.py                   ✅ non-offset constants: paths, logs, lock file, controller timing, branding (APP_NAME, APP_AUTHOR,
+                                   MENU_TITLE, APP_USER_MODEL_ID), menu/sidebar/logo sizes, sanity limits,
                                    values/weapons + display names, ranges (incl. GAME_FOV_RANGE), caps
     offsets.py                  ✅ ALL offsets + GAME_VERSION + PLAYER_READ_SIZE: single source of truth
     app/
@@ -184,27 +192,35 @@ assault cube project/
       keybinds.py               ✅ KeybindEngine (HOLD/TOGGLE/PRESS, suspended, reset_toggles), ActionStates, find_conflicts
     ui/
       __init__.py               ✅ package marker
-      theme.py                  ✅ palette constants, stylesheet (object names / dynamic properties), apply_theme, restyle
+      theme.py                  ✅ ice-blue palette, asset paths (logo), stylesheet (object names / dynamic properties), apply_theme
+                                   (also sets the app icon), restyle
       assets/arrow_up.svg       ✅ spinbox arrow (stylesheet image)
       assets/arrow_down.svg     ✅ spinbox/combo arrow (stylesheet image)
-      binder.py                 ✅ SettingBinder (checkbox/slider/combo/colour <-> settings field), KeybindBinder (key button + mode combo), helpers
-      layout.py                 ✅ group(), row(), labelled(), hint(), scrollable()
+      assets/logo.png           ✅ 256 px logo: window/taskbar icon + header logo (smoothly scaled)
+      assets/logo.ico           ✅ the user's original 32 px icon (kept for shortcuts; not used by the app)
+      binder.py                 ✅ SettingBinder (toggle/chip/segmented/slider/combo/colour <-> settings field), KeybindBinder
+                                   (key button, mode combo, mode segmented), helpers
+      layout.py                 ✅ group() (card), row(), labelled() (LABEL_WIDTH), hint()
       profile_session.py        ✅ ProfileSession: current profile, dirty flag, load/save/save as/rename/delete/reset
-      menu_window.py            ✅ header (title, status pill, Quit) + 5 tabs (Keybinds ⚠ badge on conflicts); show/hide/foreground/placement;
-                                   close -> quit/hide prompt
+      menu_window.py            ✅ header (W Cheat · By BigH, status pill, logo top right) + sidebar nav (⚠ badge, hotkey hint, Quit,
+                                   version) + stacked pages (title/subtitle + scroll); show/hide/foreground/placement; close prompt
       tabs/
         __init__.py             ✅ package marker
-        aimbot_tab.py           ✅ enable + key/mode, target, priority, max distance, team check, FOV + circle, smoothing
-        esp_tab.py              ✅ enable + toggle key, team mode + enemies only, styles, thickness, colours, extras, snapline origin
-        player_tab.py           ✅ Game FOV (slider, Now, Set now, key, Keep applied); stats + per-weapon mag/reserve: target, live "Now",
-                                   Set now, key, Freeze; notice line
-        keybinds_tab.py         ✅ every action by category (from registry), mode, conflict highlight + banner
-        settings_tab.py         ✅ profiles, tick rate/overlay FPS, menu hotkey, reset, status panel (game, process, offsets, entities, view, tick)
+        aimbot_tab.py           ✅ TITLE/SUBTITLE; switches + segmented (key mode, target, priority), sliders, FOV circle colour chip
+        esp_tab.py              ✅ TITLE/SUBTITLE; switches (enable, team mode, enemies only), style + info chips, colour chips, snapline segmented
+        player_tab.py           ✅ TITLE/SUBTITLE; Game FOV card; stats + per-weapon mag/reserve: target, live "Now", Set now, key,
+                                   Freeze switch; notice line
+        keybinds_tab.py         ✅ TITLE/SUBTITLE; every action by category (from registry), mode, conflict highlight + banner
+        settings_tab.py         ✅ TITLE/SUBTITLE; profiles, tick rate/overlay FPS, menu hotkey, reset, status panel
       widgets/
         __init__.py             ✅ package marker
         keybind_button.py       ✅ "press a key to bind" button (polls key states, waits for release, Esc clears, 6 s timeout)
-        colour_button.py        ✅ swatch button + QColorDialog with alpha; #RRGGBBAA <-> QColor
-        labelled_slider.py      ✅ slider with label and live value (float via decimal scaling)
+        colour_button.py        ✅ colour chip (checkerboard swatch + "#RRGGBB · 100%"); opens the picker; live preview, cancel restores
+        colour_picker.py        ✅ ColourPopup: presets, saturation/value square, hue bar, opacity %, hex, old/new previews;
+                                   to_qcolor/from_qcolor/parse_hex/describe/paint_checker
+        toggle_switch.py        ✅ animated ToggleSwitch (checkable QAbstractButton) + ToggleRow (label/description + switch)
+        segmented.py            ✅ SegmentedControl: joined exclusive buttons for one-of-N choices
+        labelled_slider.py      ✅ slider with label (LABEL_MIN_WIDTH = 120) and live value (float via decimal scaling)
     overlay/
       __init__.py               ✅ package marker
       window.py                 ✅ OverlayWindow: frameless/topmost/translucent/click-through, follows OverlayFrame rect, repaint at overlay_fps (precise timer)
@@ -212,7 +228,8 @@ assault cube project/
     winapi/
       __init__.py               ✅ package marker (only package allowed to make ctypes Win32 calls)
       win32.py                  ✅ key state, set_dpi_aware, find_main_window, client/window rects, is_minimized, force_foreground,
-                                   make_click_through (WS_EX_LAYERED|TRANSPARENT|TOOLWINDOW|NOACTIVATE), process image path, file version
+                                   make_click_through (WS_EX_LAYERED|TRANSPARENT|TOOLWINDOW|NOACTIVATE), set_app_user_model_id,
+                                   process image path, file version
 ```
 
 ---
@@ -395,20 +412,26 @@ entities and invalid data without crashing.
 
 ## 9. Adding a menu tab or widget
 
-- **Controls bound to settings:** use `ui/binder.py`. In a tab: `b = SettingBinder(settings, signals, "esp")`, then
-  `b.checkbox(field, text)`, `b.slider(field, text, decimals, suffix)` (range from field metadata), `b.combo(field, {Enum: label})`,
-  `b.colour(field)`. Each control initialises from settings, writes back + emits `settings_changed(section)` on change, and
+- **Controls bound to settings:** use `ui/binder.py`. In a page: `b = SettingBinder(settings, signals, "esp")`, then
+  `b.toggle(field, text, description)` (full-width switch row, for booleans), `b.chip(field, text)` (pill toggle, for groups of
+  independent options), `b.segmented(field, {Enum: label})` (one-of-N choices; prefer over combos when there are few options),
+  `b.slider(field, text, decimals, suffix)` (range from field metadata), `b.combo(...)`, `b.colour(field)` (colour chip + picker). Each control initialises from settings, writes back + emits `settings_changed(section)` on change, and
   registers a loader. `b.load()` refreshes them all quietly. For a bind: `k = KeybindBinder(settings, signals)`, then
-  `k.button(action_id)` / `k.mode_combo(action_id)`. Custom controls: write back + emit yourself, and add a loader that uses `set_quietly`.
-- **Tab:** create `ui/tabs/<name>_tab.py` with a `QWidget` subclass taking `(settings, signals[, ...])`, building its controls
-  with the binders and `ui/layout.py` helpers, and implementing `load_from_settings()` (call every binder's `load()`).
-  Register it in `MenuWindow.__init__` and `MenuWindow.all_tabs()`.
+  `k.button(action_id)` / `k.mode_segmented(action_id)` (pages) / `k.mode_combo(action_id)` (compact tables). Custom controls: write back + emit yourself, and add a loader that uses `set_quietly`.
+- **Page (sidebar section):** create `ui/tabs/<name>_tab.py` with module constants `TITLE` and `SUBTITLE` and a `QWidget`
+  subclass taking `(settings, signals[, ...])`. Build cards with `group()`, use `labelled(text, widget)` for label + control rows,
+  zero outer margins (the window adds page margins + a scroll area), and implement `load_from_settings()`. Register it in
+  `MenuWindow.__init__` (`sections` list), `MenuWindow.all_tabs()` and add a glyph to `NAV_GLYPHS`.
 - **Widget:** if a control is used in more than one tab (or is non-trivial), put it in `ui/widgets/`.
   Widgets expose a Qt signal like `valueChanged`. They never know about `Settings`.
 - **Sync rules:** any keybind edit emits `settings_changed("keybinds")`, and the menu reloads all tabs (a bind can appear on
   several tabs). Changes from outside the widgets (profile load, reset, panic, hotkeys) emit `refresh_requested`, which reloads all tabs.
-- **Styling:** all colours live in `ui/theme.py`. Tabs use object names (`primary`, `danger`, `dim`, `warning`, `status`...)
-  and dynamic properties (`capturing`, `conflict`, `state`) plus `restyle(widget)`. No inline colours in tabs.
+- **Styling:** all colours live in `ui/theme.py` (ice-blue accent `ACCENT`, dark text on accent `ACCENT_TEXT`). Pages use
+  object names (`primary`, `danger`, `chip`, `segment`, `nav`, `dim`, `warning`, `status`, `pill`, `value`...) and dynamic
+  properties (`capturing`, `conflict`, `state`, `first`/`last`) plus `restyle(widget)`. No inline colours in pages
+  (only data colours: colour swatches and presets).
+- **Design rules:** booleans = switch rows (with a one-line description when it helps), multi-select = chips,
+  one-of-few = segmented, numbers = sliders (or spinboxes in tables), colours = colour chips. Every page has a title and subtitle.
 - **Checking the look without opening windows:** render offscreen with `QT_QPA_PLATFORM=offscreen` and
   `QT_QPA_FONTDIR=C:/Windows/Fonts` (no text without it), then `widget.grab().save("x.png")`.
 
@@ -501,6 +524,14 @@ entities and invalid data without crashing.
 - **The game never clamps `VIEW_FOV`:** any written value renders (30..170 tested). The console's `/fov` limits don't apply, so
   `config.GAME_FOV_RANGE` (30..150) is the only guard. Writing changes the matrix FOV immediately.
 - **QTimer default is coarse (~15.6 ms on Windows):** use `Qt.PreciseTimer` for the tick and overlay timers.
+- **Bold on `:checked` clips text:** Qt sizes buttons for the normal font, so a bold checked state cuts off the label
+  ("Closest to crosshai"). Chips and segments signal selection with colour only.
+- **`QGroupBox QWidget {background}` outranks plain type selectors** (2 types beat 1). Buttons and inputs inside cards need
+  explicit `QGroupBox QPushButton` etc. rules, and `#primary`/`#danger` need card-scoped rules too (same for the colour popup).
+- **Taskbar icon:** without `win32.set_app_user_model_id(...)` (before any window), Windows groups the app under python.exe
+  and shows Python's icon.
+- **Logo assets:** regenerate `ui/assets/logo.png` and `docs/assets/logo.png` (256 px, `Qt.SmoothTransformation`) from
+  `docs/assets/logo-source.jpg` if the artwork changes. Don't upscale the 32 px .ico: it goes blurry or blocky.
 - **pymem log noise:** pymem installs its own DEBUG handler on import. `memory/process.py` sets the `pymem` logger to WARNING.
 - **Default player name** in AC is `unarmed`. Seeing that name means the read works.
 - **Team check in free-for-all modes (confirmed Phase 2):** in FFA deathmatch, bots still have team 0/1 and some share
@@ -565,7 +596,11 @@ entities and invalid data without crashing.
   - [x] README usage guide, final CLAUDE.md pass, .gitattributes
   - Auto-reattach, status panel and conflict warnings were already done in Phases 5–9 (verified by the user).
 
-**Next:** planned build complete. Possible future ideas (only if the user
+- [x] **UI revamp (user request, 2026-10-03)** *(done; 316 tests; approved by the user)*: W Cheat - By BigH branding + logo (header
+  top right, window/taskbar icon, README banner), sidebar navigation, page titles, ice-blue theme, toggle switches, chips,
+  segmented controls, new colour picker popup with live preview.
+
+**Next:** nothing planned. Wait for the user's next request. Possible future ideas (only if the user
 asks): target lock while holding the aim key, visibility check (needs a raycast or a visibility offset), game-mode offset
 for automatic team check, per-profile hotkey to switch profiles.
 
@@ -652,6 +687,12 @@ for automatic team check, per-profile hotkey to switch profiles.
   of the Player tab so it's visible without scrolling.
 - **2026-10-03:** Phase 10 hardening: `sys.excepthook` logger (PyQt5 would otherwise abort), `QLockFile` single instance,
   file logging only after the lock, `Qt.PreciseTimer`.
+- **2026-10-03:** UI revamp (user choices): sidebar layout, swatches + picker popup, logo in header/taskbar/README,
+  ice-blue accent. Colours apply live while the picker is open; Cancel/Esc restores, Apply/click-outside keeps. Logo moved from
+  the project root into `ui/assets/`. When the user then added the 1920 px artwork, all logos switched to 256 px PNGs made
+  from it (source kept as `docs/assets/logo-source.jpg`).
+- **2026-10-03:** `binder.checkbox` replaced by `toggle` / `chip` / `segmented`. Pages carry `TITLE`/`SUBTITLE`, and
+  `MenuWindow` wraps each in a uniform header + scroll area (pages no longer scroll themselves).
 - **2026-10-03:** Shared test fakes live in `tests/helpers/` (pytest `pythonpath = ["tests"]`). `FakeProcess` is
   duck-typed (read_bytes / read_u32 / read_i32 / module_base), so game-layer code is tested without the game.
 - **2026-10-03:** src layout (`src/actrainer`) + `pyproject.toml` editable install, so tools, tests and

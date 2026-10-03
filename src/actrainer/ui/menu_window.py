@@ -1,4 +1,4 @@
-"""Main menu window: header with status + Quit, and the five tabs.
+"""Main menu window: header (title, status, logo), sidebar navigation and one page per section.
 
 Behaviour (CLAUDE.md §9 "Menu window behaviour"):
 - toggle() shows/hides. Shown = always on top, raised and forced to the foreground (so the game
@@ -13,25 +13,40 @@ import logging
 from collections.abc import Callable
 
 from PyQt5.QtCore import QPoint, Qt
-from PyQt5.QtGui import QCloseEvent
-from PyQt5.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton, QTabWidget, QVBoxLayout, QWidget
+from PyQt5.QtGui import QCloseEvent, QIcon, QPixmap
+from PyQt5.QtWidgets import (
+    QApplication,
+    QButtonGroup,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
-from actrainer import config
+from actrainer import __version__, config
 from actrainer.app.status import ControllerStatus
+from actrainer.input.actions import MENU_TOGGLE
 from actrainer.input.keybinds import find_conflicts
+from actrainer.input.keys import key_name
 from actrainer.settings.models import Settings
 from actrainer.settings.signals import AppSignals
-from actrainer.ui.layout import row
+from actrainer.ui import theme
 from actrainer.ui.profile_session import ProfileSession
-from actrainer.ui.tabs.aimbot_tab import AimbotTab
-from actrainer.ui.tabs.esp_tab import EspTab
-from actrainer.ui.tabs.keybinds_tab import KeybindsTab
-from actrainer.ui.tabs.player_tab import PlayerTab
-from actrainer.ui.tabs.settings_tab import SettingsTab
+from actrainer.ui.tabs import aimbot_tab, esp_tab, keybinds_tab, player_tab, settings_tab
 from actrainer.ui.theme import restyle
 from actrainer.winapi import win32
 
 log = logging.getLogger(__name__)
+
+# Sidebar glyphs (rendered from Segoe UI Symbol via Qt's font fallback).
+NAV_GLYPHS = {"Aimbot": "◎", "ESP": "▣", "Player": "♥", "Keybinds": "⌨", "Settings": "⚙"}
+NAV_SEPARATOR = "   "
+CONFLICT_BADGE = "  ⚠"
+PAGE_MARGIN = 20
 
 
 class MenuWindow(QWidget):
@@ -44,28 +59,64 @@ class MenuWindow(QWidget):
         self._game_hwnd = game_hwnd
         self._allow_close = False
         self.resize(*config.MENU_SIZE)
+        if theme.LOGO_PNG.is_file():
+            self.setWindowIcon(QIcon(str(theme.LOGO_PNG)))
 
-        title = QLabel(config.MENU_TITLE)
-        title.setObjectName("title")
-        self.status_pill = QLabel()
-        self.status_pill.setObjectName("status")
-        quit_button = QPushButton("Quit")
+        self.aimbot_tab = aimbot_tab.AimbotTab(settings, signals)
+        self.esp_tab = esp_tab.EspTab(settings, signals)
+        self.player_tab = player_tab.PlayerTab(settings, signals)
+        self.keybinds_tab = keybinds_tab.KeybindsTab(settings, signals)
+        self.settings_tab = settings_tab.SettingsTab(settings, signals, session)
+        sections = [(aimbot_tab, self.aimbot_tab), (esp_tab, self.esp_tab), (player_tab, self.player_tab),
+                    (keybinds_tab, self.keybinds_tab), (settings_tab, self.settings_tab)]
+
+        # --- pages + sidebar ---
+        self.pages = QStackedWidget()
+        self.nav_buttons: dict[QWidget, QPushButton] = {}
+        self._nav_group = QButtonGroup(self)
+        self._nav_group.setExclusive(True)
+        sidebar = QWidget()
+        sidebar.setObjectName("sidebar")
+        sidebar.setFixedWidth(config.SIDEBAR_WIDTH)
+        side = QVBoxLayout(sidebar)
+        side.setContentsMargins(10, 14, 10, 14)
+        side.setSpacing(4)
+        for module, tab in sections:
+            index = self.pages.addWidget(self._page(module.TITLE, module.SUBTITLE, tab))
+            button = QPushButton(f"{NAV_GLYPHS[module.TITLE]}{NAV_SEPARATOR}{module.TITLE}")
+            button.setObjectName("nav")
+            button.setCheckable(True)
+            button.setCursor(Qt.PointingHandCursor)
+            button.clicked.connect(lambda _c=False, i=index: self.pages.setCurrentIndex(i))
+            self._nav_group.addButton(button, index)
+            self.nav_buttons[tab] = button
+            side.addWidget(button)
+        self.nav_buttons[self.aimbot_tab].setChecked(True)
+        side.addStretch(1)
+        self.hotkey_hint = QLabel()
+        self.hotkey_hint.setObjectName("dim")
+        self.hotkey_hint.setWordWrap(True)
+        side.addWidget(self.hotkey_hint)
+        quit_button = QPushButton("⏻   Quit")
         quit_button.setObjectName("danger")
+        quit_button.setCursor(Qt.PointingHandCursor)
         quit_button.clicked.connect(self.request_quit)
+        side.addWidget(quit_button)
+        version = QLabel(f"v{__version__} · offline bots only")
+        version.setObjectName("dim")
+        side.addWidget(version)
 
-        self.tabs = QTabWidget()
-        self.aimbot_tab = AimbotTab(settings, signals)
-        self.esp_tab = EspTab(settings, signals)
-        self.player_tab = PlayerTab(settings, signals)
-        self.keybinds_tab = KeybindsTab(settings, signals)
-        self.settings_tab = SettingsTab(settings, signals, session)
-        for tab, name in ((self.aimbot_tab, "Aimbot"), (self.esp_tab, "ESP"), (self.player_tab, "Player"),
-                          (self.keybinds_tab, "Keybinds"), (self.settings_tab, "Settings")):
-            self.tabs.addTab(tab, name)
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+        body.addWidget(sidebar)
+        body.addWidget(self.pages, 1)
 
-        layout = QVBoxLayout(self)
-        layout.addWidget(row(title, None, self.status_pill, quit_button))
-        layout.addWidget(self.tabs, 1)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        root.addWidget(self._header())
+        root.addLayout(body, 1)
 
         signals.refresh_requested.connect(self.reload_all)
         signals.settings_changed.connect(self._on_settings_changed)
@@ -73,33 +124,105 @@ class MenuWindow(QWidget):
         session.state_changed.connect(self._update_title)
         self._update_title()
         self._update_keybinds_badge()
+        self._update_hotkey_hint()
         self.show_status(ControllerStatus())
 
-    # --- tabs -------------------------------------------------------------------------
+    # --- construction helpers ---------------------------------------------------------------
+
+    def _header(self) -> QWidget:
+        header = QWidget()
+        header.setObjectName("header")
+        title = QLabel(config.APP_NAME)
+        title.setObjectName("appTitle")
+        subtitle = QLabel(config.APP_AUTHOR)
+        subtitle.setObjectName("appSubtitle")
+        self.status_pill = QLabel()
+        self.status_pill.setObjectName("pill")
+        self.logo = QLabel()
+        self.logo.setToolTip(config.MENU_TITLE)
+        if theme.LOGO_PNG.is_file():
+            pixmap = QPixmap(str(theme.LOGO_PNG))  # 256 px source, smoothly scaled down
+            self.logo.setPixmap(pixmap.scaled(config.LOGO_SIZE, config.LOGO_SIZE, Qt.KeepAspectRatio,
+                                              Qt.SmoothTransformation))
+        layout = QHBoxLayout(header)
+        layout.setContentsMargins(18, 10, 14, 10)
+        layout.setSpacing(10)
+        layout.addWidget(title)
+        layout.addWidget(subtitle, 0, Qt.AlignBottom)
+        layout.addStretch(1)
+        layout.addWidget(self.status_pill)
+        layout.addWidget(self.logo)
+        return header
+
+    @staticmethod
+    def _page(title: str, subtitle: str, content: QWidget) -> QWidget:
+        """Page = title + subtitle above a scroll area holding the section's widget."""
+        heading = QLabel(title)
+        heading.setObjectName("pageTitle")
+        sub = QLabel(subtitle)
+        sub.setObjectName("pageSubtitle")
+        sub.setWordWrap(True)
+        inner = QWidget()
+        inner_layout = QVBoxLayout(inner)
+        inner_layout.setContentsMargins(PAGE_MARGIN, 0, PAGE_MARGIN, PAGE_MARGIN)
+        inner_layout.addWidget(content)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(inner)
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, PAGE_MARGIN - 4, 0, 0)
+        layout.setSpacing(4)
+        head = QVBoxLayout()
+        head.setContentsMargins(PAGE_MARGIN, 0, PAGE_MARGIN, 8)
+        head.setSpacing(2)
+        head.addWidget(heading)
+        head.addWidget(sub)
+        layout.addLayout(head)
+        layout.addWidget(scroll, 1)
+        return page
+
+    # --- pages ---------------------------------------------------------------------------------
 
     def all_tabs(self) -> list[QWidget]:
         return [self.aimbot_tab, self.esp_tab, self.player_tab, self.keybinds_tab, self.settings_tab]
+
+    def page_titles(self) -> list[str]:
+        """Sidebar labels without glyphs or badges, in order."""
+        return [b.text().split(NAV_SEPARATOR, 1)[1].replace(CONFLICT_BADGE, "") for b in self.nav_buttons.values()]
+
+    def show_page(self, tab: QWidget) -> None:
+        self.nav_buttons[tab].click()
+
+    def current_tab(self) -> QWidget:
+        return self.all_tabs()[self.pages.currentIndex()]
 
     def reload_all(self) -> None:
         """Refresh every control from settings (after a profile load, panic, hotkey...)."""
         for tab in self.all_tabs():
             tab.load_from_settings()  # type: ignore[attr-defined]
         self._update_keybinds_badge()
+        self._update_hotkey_hint()
 
     def _on_settings_changed(self, section: str) -> None:
-        # A bind can be shown on several tabs (e.g. aimbot key on Aimbot + Keybinds): keep them in sync.
+        # A bind can be shown on several pages (e.g. aimbot key on Aimbot + Keybinds): keep them in sync.
         if section == "keybinds":
             self.reload_all()
 
     def _update_keybinds_badge(self) -> None:
-        """Show ⚠ on the Keybinds tab when any key is bound to several actions."""
-        index = self.tabs.indexOf(self.keybinds_tab)
+        """Show ⚠ on the Keybinds nav entry when any key is bound to several actions."""
+        base = f"{NAV_GLYPHS['Keybinds']}{NAV_SEPARATOR}Keybinds"
         conflicts = find_conflicts(self.settings.keybinds.binds)
-        self.tabs.setTabText(index, "Keybinds ⚠" if conflicts else "Keybinds")
+        self.nav_buttons[self.keybinds_tab].setText(base + (CONFLICT_BADGE if conflicts else ""))
+
+    def _update_hotkey_hint(self) -> None:
+        key = self.settings.keybinds.binds[MENU_TOGGLE].key
+        self.hotkey_hint.setText(f"{key_name(key)} shows / hides this menu" if key is not None
+                                 else "Menu hotkey is unbound")
 
     def _update_title(self) -> None:
         marker = " *" if self.session.dirty else ""
-        self.setWindowTitle(f"{config.MENU_TITLE} — {self.session.current}{marker}")
+        self.setWindowTitle(f"{config.MENU_TITLE}  ·  {self.session.current}{marker}")
 
     def show_status(self, status: ControllerStatus) -> None:
         if not status.attached:
@@ -181,9 +304,9 @@ class MenuWindow(QWidget):
         event.ignore()
         box = QMessageBox(self)
         box.setWindowTitle("Close menu")
-        box.setText("Quit the trainer, or just hide the menu?")
+        box.setText(f"Quit {config.APP_NAME}, or just hide the menu?")
         box.setInformativeText("Hidden: press the menu hotkey to bring it back.")
-        quit_button = box.addButton("Quit trainer", QMessageBox.DestructiveRole)
+        quit_button = box.addButton("Quit", QMessageBox.DestructiveRole)
         hide_button = box.addButton("Hide menu", QMessageBox.AcceptRole)
         box.addButton(QMessageBox.Cancel)
         box.setDefaultButton(hide_button)

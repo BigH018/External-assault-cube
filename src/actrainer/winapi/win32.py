@@ -240,6 +240,17 @@ def make_click_through(hwnd: int) -> None:
     _user32.SetWindowLongPtrW(hwnd, _GWL_EXSTYLE, style)
 
 
+def set_app_user_model_id(app_id: str) -> None:
+    """Give the process its own taskbar identity, so Windows shows our window icon instead of python.exe's.
+
+    Must be called before any window is created.
+    """
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(ctypes.c_wchar_p(app_id))
+    except (AttributeError, OSError):
+        log.debug("could not set AppUserModelID")
+
+
 # --- process info -------------------------------------------------------------------------
 
 def get_process_image_path(pid: int) -> str | None:

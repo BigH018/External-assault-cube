@@ -26,6 +26,9 @@ from actrainer.ui.layout import group, hint, labelled, row
 from actrainer.ui.profile_session import ProfileSession
 from actrainer.ui.theme import restyle
 
+TITLE = "Settings"
+SUBTITLE = "Profiles, performance, the menu hotkey and connection status."
+
 CURRENT_MARK = "●  "
 READ_ONLY_MARK = "  (read-only)"
 
@@ -83,6 +86,8 @@ class SettingsTab(QWidget):
             form.addRow(title, label)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
         for box in (profiles, perf, menu, status):
             layout.addWidget(box)
         layout.addStretch(1)

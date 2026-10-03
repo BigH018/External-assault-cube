@@ -4,6 +4,32 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — UI revamp: W Cheat - By BigH
+
+**User choices:** sidebar navigation · swatches + picker popup · logo in header (top right), window/taskbar icon and README
+banner · ice-blue accent · title "W Cheat - By BigH".
+
+**Built**
+- Branding: `config.APP_NAME` / `APP_AUTHOR` / `MENU_TITLE`; the user's 1920 px artwork is kept as `docs/assets/logo-source.jpg`
+  and turned into 256 px PNGs (`ui/assets/logo.png` for the header + window/taskbar icon, `docs/assets/logo.png` for the README).
+  The original 32 px .ico is kept in `ui/assets/`. `win32.set_app_user_model_id` makes the taskbar show the logo.
+- `ui/theme.py` rewritten: ice-blue palette, header/sidebar/nav, cards with inner titles, chips, segmented, pill, popup styles.
+- New widgets: `ToggleSwitch` / `ToggleRow` (animated), `SegmentedControl`, `ColourPopup` (presets, SV square, hue bar,
+  opacity %, hex, old/new on checkerboard), redesigned `ColourButton` chip with live preview + cancel restore.
+- `ui/binder.py`: `toggle`, `chip`, `segmented`, `KeybindBinder.mode_segmented`.
+- `ui/menu_window.py`: header (title, subtitle, status pill, logo) + sidebar (nav, ⚠ badge, menu-hotkey hint, Quit, version)
+  + stacked pages with title/subtitle + scroll.
+- All five pages rebuilt with the new controls and descriptions. README gained a centred logo banner and a colour picker guide.
+- Tests updated + new widget tests. **316 tests total, all passing.**
+
+**Fixed while reviewing renders**
+- Bold text on checked chips/segments was clipped. Selection now uses colour only.
+- Card/popup background rule outranked button/input styles (flat buttons, Apply looked disabled). Added scoped rules.
+
+**User approved** the redesign.
+
+---
+
 ## 2026-10-03 — Phase 10: Polish + game FOV slider
 
 **Built**

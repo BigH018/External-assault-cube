@@ -16,10 +16,10 @@ def collect(signals: AppSignals) -> list[str]:
     return seen
 
 
-def test_checkbox_writes_setting_and_emits(settings: Settings, signals: AppSignals) -> None:
+def test_toggle_writes_setting_and_emits(settings: Settings, signals: AppSignals) -> None:
     seen = collect(signals)
-    box = SettingBinder(settings, signals, "aimbot").checkbox("enabled", "Enable")
-    box.setChecked(True)
+    row = SettingBinder(settings, signals, "aimbot").toggle("enabled", "Enable")
+    row.switch.setChecked(True)
     assert settings.aimbot.enabled is True
     assert seen == ["aimbot"]
 
@@ -42,7 +42,7 @@ def test_combo_writes_enum(settings: Settings, signals: AppSignals) -> None:
 
 def test_load_refreshes_after_profile_replace_without_emitting(settings: Settings, signals: AppSignals) -> None:
     b = SettingBinder(settings, signals, "aimbot")
-    box = b.checkbox("enabled", "Enable")
+    row = b.toggle("enabled", "Enable")
     fov = b.slider("fov_deg", "FOV", decimals=1)
     other = default_settings()
     other.aimbot.enabled = True
@@ -50,14 +50,14 @@ def test_load_refreshes_after_profile_replace_without_emitting(settings: Setting
     settings.replace_with(other)
     seen = collect(signals)
     b.load()
-    assert box.isChecked() and fov.value() == 42.0
+    assert row.switch.isChecked() and fov.value() == 42.0
     assert seen == []  # loading must not mark the profile dirty
 
 
 def test_binder_writes_to_current_section_after_replace(settings: Settings, signals: AppSignals) -> None:
-    box = SettingBinder(settings, signals, "aimbot").checkbox("enabled", "Enable")
+    row = SettingBinder(settings, signals, "aimbot").toggle("enabled", "Enable")
     settings.replace_with(default_settings())  # section object replaced
-    box.setChecked(True)
+    row.switch.setChecked(True)
     assert settings.aimbot.enabled is True     # wrote to the NEW section, not a stale one
 
 
@@ -80,3 +80,26 @@ def test_keybind_capture_signals_forwarded(settings: Settings, signals: AppSigna
     button.captureStarted.emit()
     button.captureFinished.emit()
     assert states == [True, False]
+
+
+def test_chip_writes_bool(settings: Settings, signals: AppSignals) -> None:
+    chip = SettingBinder(settings, signals, "esp").chip("skeleton", "Skeleton")
+    assert chip.isCheckable() and not chip.isChecked()
+    chip.setChecked(True)
+    assert settings.esp.skeleton is True
+
+
+def test_segmented_writes_enum_and_reloads(settings: Settings, signals: AppSignals) -> None:
+    b = SettingBinder(settings, signals, "aimbot")
+    control = b.segmented("target", {AimTarget.HEAD: "Head", AimTarget.BODY: "Body"})
+    control.buttons[1].click()
+    assert settings.aimbot.target is AimTarget.BODY
+    settings.aimbot.target = AimTarget.HEAD
+    b.load()
+    assert control.currentIndex() == 0
+
+
+def test_keybind_mode_segmented(settings: Settings, signals: AppSignals) -> None:
+    control = KeybindBinder(settings, signals).mode_segmented(AIMBOT_ACTIVATE)
+    control.buttons[1].click()  # Toggle
+    assert settings.keybinds.binds[AIMBOT_ACTIVATE].mode is BindMode.TOGGLE

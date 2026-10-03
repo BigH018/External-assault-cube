@@ -1,14 +1,17 @@
-"""ESP tab: enable + toggle key, styles (combinable), line thickness, colours, extras."""
+"""ESP page: enable + toggle key, teams, styles (combinable chips), colours, info extras."""
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QGridLayout, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
 from actrainer.input.actions import ESP_TOGGLE
 from actrainer.settings.models import Settings, SnaplineOrigin
 from actrainer.settings.signals import AppSignals
 from actrainer.ui.binder import KeybindBinder, SettingBinder
 from actrainer.ui.layout import group, hint, labelled, row
+
+TITLE = "ESP"
+SUBTITLE = "Draws boxes, skeletons and info over bots, even through walls."
 
 SNAPLINE_LABELS = {SnaplineOrigin.BOTTOM: "Screen bottom", SnaplineOrigin.CENTRE: "Screen centre"}
 
@@ -21,37 +24,32 @@ class EspTab(QWidget):
         b = self.binder
 
         general, g = group("General")
-        g.addWidget(row(b.checkbox("enabled", "Enable ESP"), None,
-                        QLabel("Toggle key"), self.keys.button(ESP_TOGGLE)))
-        g.addWidget(row(b.checkbox("team_mode", "Team mode",
-                                   "On: teammates get the team colour and 'Enemies only' applies. Off (free-for-all): "
-                                   "every bot is an enemy, since FFA bots still carry team values."),
-                        b.checkbox("enemies_only", "Enemies only (team mode)"), stretch_last=True))
+        g.addWidget(b.toggle("enabled", "Enable ESP"))
+        g.addWidget(labelled("Toggle key", self.keys.button(ESP_TOGGLE)))
+        g.addWidget(b.toggle("team_mode", "Team mode", "Use team colours. Leave OFF in free-for-all, where every bot "
+                                                       "is an enemy."))
+        g.addWidget(b.toggle("enemies_only", "Enemies only", "Hide teammates (team mode only)."))
 
-        styles, s = group("Styles (combine freely)")
-        s.addWidget(row(b.checkbox("box_2d", "2D box"), b.checkbox("corner_box", "Corner box"),
-                        b.checkbox("head_circle", "Head circle"), b.checkbox("skeleton", "Skeleton"),
-                        stretch_last=True))
+        style, s = group("Style")
+        s.addWidget(labelled("Draw", row(b.chip("box_2d", "2D box"), b.chip("corner_box", "Corner box"),
+                                         b.chip("head_circle", "Head circle"), b.chip("skeleton", "Skeleton"),
+                                         stretch_last=True)))
+        s.addWidget(hint("Pick any combination. The skeleton is approximate: the game stores no bones."))
         s.addWidget(b.slider("thickness", "Line thickness", suffix=" px"))
-        colours = QGridLayout()
-        colours.addWidget(QLabel("Enemies"), 0, 0)
-        colours.addWidget(b.colour("enemy_colour"), 0, 1)
-        colours.addWidget(QLabel("Teammates"), 0, 2)
-        colours.addWidget(b.colour("team_colour"), 0, 3)
-        colours.setColumnStretch(4, 1)
-        s.addLayout(colours)
-        s.addWidget(hint("Skeleton is approximate: the game stores no bones, so it's built from head, feet and facing."))
+        s.addWidget(labelled("Enemy colour", b.colour("enemy_colour")))
+        s.addWidget(labelled("Team colour", b.colour("team_colour")))
 
-        extras, e = group("Extras")
-        e.addWidget(row(b.checkbox("show_name", "Name"), b.checkbox("show_distance", "Distance"),
-                        b.checkbox("show_health_bar", "Health bar"),
-                        b.checkbox("show_health_number", "Health number"), stretch_last=True))
-        e.addWidget(row(b.checkbox("show_snaplines", "Snaplines"),
-                        labelled("from", b.combo("snapline_origin", SNAPLINE_LABELS), label_width=30),
-                        stretch_last=True))
+        info, i = group("Info")
+        i.addWidget(labelled("Show", row(b.chip("show_name", "Name"), b.chip("show_distance", "Distance"),
+                                         b.chip("show_health_bar", "Health bar"),
+                                         b.chip("show_health_number", "Health number"), stretch_last=True)))
+        i.addWidget(b.toggle("show_snaplines", "Snaplines", "A line from the screen to each bot."))
+        i.addWidget(labelled("Snaplines from", b.segmented("snapline_origin", SNAPLINE_LABELS)))
 
         layout = QVBoxLayout(self)
-        for box in (general, styles, extras):
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+        for box in (general, style, info):
             layout.addWidget(box)
         layout.addStretch(1)
 
