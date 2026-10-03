@@ -610,6 +610,9 @@ entities and invalid data without crashing.
 
 - [x] **README screenshots (user request, 2026-10-03)**: in-game ESP (2 styles) + all menu pages + colour picker, with
   regeneration tools.
+- [x] **README "How it works" section (user request, 2026-10-03)**: memory/pointers/structs, the camera-pointer
+  story, aimbot maths, projection, ESP box/skeleton/FOV circle, overlay, player values, architecture. Keep it in sync if
+  the maths or offsets change.
 
 **Next:** nothing planned. Wait for the user's next request. Possible future ideas (only if the user
 asks): target lock while holding the aim key, visibility check (needs a raycast or a visibility offset), game-mode offset

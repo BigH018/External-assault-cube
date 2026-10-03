@@ -4,6 +4,17 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-03 — README: "How it works"
+
+- Added an educational section at the bottom of the README for learners: process memory, module base, 32-bit pointers,
+  pointer chains, structs and the entity list; how the camera-pointer bug was found; aimbot angle maths (AC's +90° yaw,
+  true angular distance, priorities, shortest-path smoothing, single 8-byte write); world-to-screen projection step by step
+  (column-major matrix, behind-camera rejection, perspective divide, y flip, the centre-check proof); ESP box, approximate
+  skeleton (left-handed world), FOV circle radius, click-through + DPI-aware overlay; player values/freeze; architecture
+  diagram. All linked source files verified to exist.
+
+---
+
 ## 2026-10-03 — README screenshots
 
 - `tools/readme_shots_game.py`: grabs the live game's client area from the screen and paints `build_esp(...)` on it with the
