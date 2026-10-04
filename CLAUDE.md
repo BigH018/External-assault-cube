@@ -10,7 +10,9 @@ This file is the project's memory. A fresh session must be able to work from thi
 A personal **learning project**: an external trainer for **AssaultCube 1.3.0.2 (Lockdown Edition)**,
 written in Python. It has a PyQt5 menu, a customisable aimbot, an ESP overlay, player value editing,
 a game FOV changer and a keybind system. **All 10 build phases are complete (2026-10-03).**
-Display name / branding: **W Cheat - By BigH** (the user's logo: `docs/assets/logo-source.jpg`, used via `ui/assets/logo.png`). The Python
+Display name / branding: **External Cheat - By BigH** (renamed from "W Cheat" on 2026-10-04 to match the user's follow-up
+repo, Internal Cheat: https://github.com/BigH018/internal-assault-cube). The user's logo: `docs/assets/logo-source.jpg`, used via
+`ui/assets/logo.png`. GitHub repo: https://github.com/BigH018/External-assault-cube (was `assault-cube-project`). The Python
 package stays `actrainer`.
 
 AssaultCube is a free, open-source FPS that runs offline against bots and has no anti-cheat. That makes
@@ -88,7 +90,8 @@ Status markers: ✅ exists, 🔲 planned (phase number in brackets).
 ```
 assault cube project/
   CLAUDE.md                     ✅ this file: project memory and rules
-  README.md                     ✅ overview, install/run, full usage guide (menu, hotkeys, troubleshooting), limits
+  README.md                     ✅ overview, install/run, usage guide, troubleshooting, debug tools, layout, 19-section educational
+                                   "How it works" (mirrors the Internal Cheat README's structure), credits
   requirements.txt              ✅ pinned-minimum dependencies
   .gitignore                    ✅ Python + local profiles/logs
   .gitattributes                ✅ LF line endings everywhere (no CRLF warnings)
@@ -207,7 +210,7 @@ assault cube project/
                                    (key button, mode combo, mode segmented), helpers
       layout.py                 ✅ group() (card), row(), labelled() (LABEL_WIDTH), hint()
       profile_session.py        ✅ ProfileSession: current profile, dirty flag, load/save/save as/rename/delete/reset
-      menu_window.py            ✅ header (W Cheat · By BigH, status pill, logo top right) + sidebar nav (⚠ badge, hotkey hint, Quit,
+      menu_window.py            ✅ header (External Cheat · By BigH, status pill, logo top right) + sidebar nav (⚠ badge, hotkey hint, Quit,
                                    version) + stacked pages (title/subtitle + scroll); show/hide/foreground/placement; close prompt
       tabs/
         __init__.py             ✅ package marker
@@ -604,7 +607,7 @@ entities and invalid data without crashing.
   - [x] README usage guide, final CLAUDE.md pass, .gitattributes
   - Auto-reattach, status panel and conflict warnings were already done in Phases 5–9 (verified by the user).
 
-- [x] **UI revamp (user request, 2026-10-03)** *(done; 316 tests; approved by the user)*: W Cheat - By BigH branding + logo (header
+- [x] **UI revamp (user request, 2026-10-03)** *(done; 316 tests; approved by the user)*: W Cheat - By BigH branding (renamed External Cheat on 2026-10-04) + logo (header
   top right, window/taskbar icon, README banner), sidebar navigation, page titles, ice-blue theme, toggle switches, chips,
   segmented controls, new colour picker popup with live preview.
 
@@ -613,6 +616,11 @@ entities and invalid data without crashing.
 - [x] **README "How it works" section (user request, 2026-10-03)**: memory/pointers/structs, the camera-pointer
   story, aimbot maths, projection, ESP box/skeleton/FOV circle, overlay, player values, architecture. Keep it in sync if
   the maths or offsets change.
+
+- [x] **README rewrite + rename (user request, 2026-10-04)**: README rebuilt in the style of the Internal Cheat repo (contents,
+  features, debug-tools table, project layout, 19-section "How it works", what I learned per phase, credits). Branding
+  "W Cheat" → "External Cheat" (`config.APP_NAME`, AppUserModelID, menu screenshots regenerated). Repo renamed to
+  `External-assault-cube`. Keep the README's "How it works" in sync if the maths, offsets or architecture change.
 
 **Next:** nothing planned. Wait for the user's next request. Possible future ideas (only if the user
 asks): target lock while holding the aim key, visibility check (needs a raycast or a visibility offset), game-mode offset
@@ -709,6 +717,9 @@ for automatic team check, per-profile hotkey to switch profiles.
   `MenuWindow` wraps each in a uniform header + scroll area (pages no longer scroll themselves).
 - **2026-10-03:** Shared test fakes live in `tests/helpers/` (pytest `pythonpath = ["tests"]`). `FakeProcess` is
   duck-typed (read_bytes / read_u32 / read_i32 / module_base), so game-layer code is tested without the game.
+- **2026-10-04:** Branding "W Cheat" → "External Cheat" (user request) so the two repos pair up: External Cheat (Python,
+  this repo) and Internal Cheat (C++ DLL). `APP_USER_MODEL_ID` changed to `BigH.ExternalCheat`. The README keeps the heading
+  "How it works (the educational part)" because the Internal Cheat README links to that anchor.
 - **2026-10-03:** src layout (`src/actrainer`) + `pyproject.toml` editable install, so tools, tests and
   `python -m actrainer` all import the package the same way.
 

@@ -28,10 +28,10 @@ STATUS_INTERVAL_S = 0.5      # how often the menu's status panel is refreshed
 TICK_RATE_SMOOTHING = 0.1    # weight of the newest sample in the measured tick rate (exponential average)
 
 # --- Menu window --------------------------------------------------------------
-APP_NAME = "W Cheat"
+APP_NAME = "External Cheat"
 APP_AUTHOR = "By BigH"
 MENU_TITLE = f"{APP_NAME} - {APP_AUTHOR}"   # window title
-APP_USER_MODEL_ID = "BigH.WCheat"            # lets Windows show our logo in the taskbar instead of Python's
+APP_USER_MODEL_ID = "BigH.ExternalCheat"    # lets Windows show our logo in the taskbar instead of Python's
 MENU_SIZE = (920, 760)       # initial width, height in pixels
 SIDEBAR_WIDTH = 190
 LOGO_SIZE = 40               # header logo, pixels

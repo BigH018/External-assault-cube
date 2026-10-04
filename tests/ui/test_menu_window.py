@@ -20,7 +20,7 @@ def test_builds_with_five_pages_and_branding(settings: Settings, signals: AppSig
                                             session: ProfileSession) -> None:
     menu = make(settings, signals, session)
     assert menu.page_titles() == ["Aimbot", "ESP", "Player", "Keybinds", "Settings"]
-    assert menu.windowTitle().startswith("W Cheat - By BigH")
+    assert menu.windowTitle().startswith("External Cheat - By BigH")
     assert menu.logo.pixmap() is not None and not menu.logo.pixmap().isNull()
 
 

@@ -4,6 +4,22 @@ Dated log of what was built, decisions made and bugs fixed. Newest first.
 
 ---
 
+## 2026-10-04 — README rewrite + rename to External Cheat
+
+- **Branding:** "W Cheat" → "External Cheat" (user request, to match the Internal Cheat repo). `config.APP_NAME`,
+  `APP_USER_MODEL_ID` (`BigH.ExternalCheat`), the window-title test, and all menu screenshots regenerated with
+  `tools/readme_shots_menu.py` (game attached for live status). 316 tests passing.
+- **README rebuilt** in the Internal Cheat README's structure: intro (external vs internal, link to the follow-up), contents,
+  features, requirements, install/run, menu guide, troubleshooting, debug-tools table, tests, project layout, and a
+  19-section "How it works": attaching, bytes/endianness/32-bit, pointer chains + struct table, entity list + sanity checks,
+  the camera-pointer bug and how offsets were found, yaw convention, aimbot pipeline, world-to-screen + FOV from the matrix,
+  ESP, overlay window tricks, values/freeze/FOV, global hotkeys + keybind engine, foreground lock, settings/profiles,
+  crash safety, testing without the game, architecture, lessons per phase; credits and licences.
+  All in-page anchors and linked files checked.
+- **Repo renamed** `assault-cube-project` → `External-assault-cube` (GitHub redirects the old URL).
+
+---
+
 ## 2026-10-03 — README: "How it works"
 
 - Added an educational section at the bottom of the README for learners: process memory, module base, 32-bit pointers,
